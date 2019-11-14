@@ -24,6 +24,9 @@ impl AsRawFd for Descriptor {
     fn as_raw_fd(&self) -> RawFd {
         match self {
             Self::OsFile(file) => file.as_raw_fd(),
+            Self::Socket(s) => s.as_raw_fd(),
+            // TODO: set errno
+            Self::SocketFd(s) => unimplemented!(),
             Self::Stdin => io::stdin().as_raw_fd(),
             Self::Stdout => io::stdout().as_raw_fd(),
             Self::Stderr => io::stderr().as_raw_fd(),
@@ -52,6 +55,14 @@ pub(crate) unsafe fn determine_type_and_access_rights<Fd: AsRawFd>(
     }
 
     Ok((file_type, rights_base, rights_inheriting))
+}
+
+pub(crate) unsafe fn determine_type_and_access_rights_for_socket() -> Result<(
+    wasi::__wasi_filetype_t,
+    wasi::__wasi_rights_t,
+    wasi::__wasi_rights_t,
+)> {
+    unimplemented!()
 }
 
 /// This function is unsafe because it operates on a raw file descriptor.

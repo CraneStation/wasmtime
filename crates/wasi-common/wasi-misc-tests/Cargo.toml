@@ -10,3 +10,6 @@ publish = false
 libc = "0.2.65"
 wasi = "0.7.0"
 more-asserts = "0.2.1"
+
+[patch.crates-io.wasi]
+path = "../../../../rust-wasi"

@@ -363,6 +363,8 @@ pub(crate) unsafe fn fd_write(
         .as_descriptor_mut(wasi::__WASI_RIGHT_FD_WRITE, 0)?
     {
         Descriptor::OsFile(file) => file.write_vectored(&iovs)?,
+        Descriptor::Socket(_) => return Err(Error::EBADF),
+        Descriptor::SocketFd(_) => return Err(Error::EBADF),
         Descriptor::Stdin => return Err(Error::EBADF),
         Descriptor::Stdout => {
             // lock for the duration of the scope

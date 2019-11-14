@@ -1404,6 +1404,7 @@ pub const __WASI_RIGHT_PATH_REMOVE_DIRECTORY: __wasi_rights_t = 33554432;
 pub const __WASI_RIGHT_PATH_UNLINK_FILE: __wasi_rights_t = 67108864;
 pub const __WASI_RIGHT_POLL_FD_READWRITE: __wasi_rights_t = 134217728;
 pub const __WASI_RIGHT_SOCK_SHUTDOWN: __wasi_rights_t = 268435456;
+pub const __WASI_RIGHT_SOCK_CONNECT: __wasi_rights_t = 536870912;
 pub const __WASI_SOCK_RECV_DATA_TRUNCATED: __wasi_roflags_t = 1;
 pub const __WASI_SHUT_RD: __wasi_sdflags_t = 1;
 pub const __WASI_SHUT_WR: __wasi_sdflags_t = 2;

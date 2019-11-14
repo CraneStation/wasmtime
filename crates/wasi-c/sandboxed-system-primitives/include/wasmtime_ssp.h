@@ -210,6 +210,7 @@ typedef uint64_t __wasi_rights_t;
 #define __WASI_RIGHT_PATH_UNLINK_FILE        (0x0000000004000000)
 #define __WASI_RIGHT_POLL_FD_READWRITE       (0x0000000008000000)
 #define __WASI_RIGHT_SOCK_SHUTDOWN           (0x0000000010000000)
+#define __WASI_RIGHT_SOCK_CONNECT            (0x0000000020000000)
 
 typedef uint16_t __wasi_roflags_t;
 #define __WASI_SOCK_RECV_DATA_TRUNCATED (0x0001)

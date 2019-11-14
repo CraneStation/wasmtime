@@ -1,12 +1,22 @@
 use crate::sys::dev_null;
-use crate::sys::fdentry_impl::{determine_type_and_access_rights, OsFile};
+use crate::sys::fdentry_impl::{determine_type_and_access_rights,
+                               determine_type_and_access_rights_for_socket, OsFile};
 use crate::{wasi, Error, Result};
 use std::path::PathBuf;
-use std::{fs, io};
+use std::{fs, io, net};
+
+#[derive(Debug)]
+pub struct SocketDetails {
+    pub socket_domain: i32,
+    pub socket_type: u8,
+    pub socket_protocol: i32,
+}
 
 #[derive(Debug)]
 pub(crate) enum Descriptor {
     OsFile(OsFile),
+    Socket(net::TcpStream),
+    SocketFd(SocketDetails), // stores allocated fd, and options: domain, type and protocol
     Stdin,
     Stdout,
     Stderr,
@@ -30,6 +40,29 @@ impl Descriptor {
     pub(crate) fn is_file(&self) -> bool {
         match self {
             Self::OsFile(_) => true,
+            _ => false,
+        }
+    }
+
+    #[allow(unused)]
+    pub(crate) fn as_socket(&self) -> Result<&net::TcpStream> {
+        match self {
+            Descriptor::Socket(s) => Ok(s),
+            // TODO: add a separate error code?
+            _ => Err(Error::EBADF),
+        }
+    }
+
+    pub(crate) fn is_socket(&self) -> bool {
+        match self {
+            Descriptor::Socket(_) => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn is_socket_fd(&self) -> bool {
+        match self {
+            Descriptor::SocketFd(_) => true,
             _ => false,
         }
     }
@@ -83,6 +116,18 @@ impl FdEntry {
             |(file_type, rights_base, rights_inheriting)| Self {
                 file_type,
                 descriptor: Descriptor::OsFile(OsFile::from(file)),
+                rights_base,
+                rights_inheriting,
+                preopen_path: None,
+            },
+        )
+    }
+
+    pub(crate) fn from_socket_details(details: SocketDetails) -> Result<Self> {
+        unsafe { determine_type_and_access_rights_for_socket() }.map(
+            |(file_type, rights_base, rights_inheriting)| Self {
+                file_type,
+                descriptor: Descriptor::SocketFd(details),
                 rights_base,
                 rights_inheriting,
                 preopen_path: None,
