@@ -106,8 +106,28 @@ unsafe fn test_truncation_rights(dir_fd: wasi_unstable::Fd) {
             "reading the fdstat from a directory",
         );
 
+        // Test that we can truncate the file without the
+        // wasi_unstable::RIGHT_PATH_FILESTAT_SET_SIZE, but having
+        // the wasi_unstable::RIGHT_FD_WRITE right.
+        status = wasi_path_open(
+            dir_fd,
+            0,
+            "file",
+            wasi_unstable::O_TRUNC,
+            wasi_unstable::RIGHT_FD_WRITE,
+            0,
+            0,
+            &mut file_fd,
+        );
+        assert_eq!(
+            status,
+            wasi_unstable::raw::__WASI_ESUCCESS,
+            "truncating a file without path_filestat_set_size right but with RIGHT_FD_WRITE",
+        );
+
         // Test that we can't truncate the file without the
-        // wasi_unstable::RIGHT_PATH_FILESTAT_SET_SIZE right.
+        // wasi_unstable::RIGHT_PATH_FILESTAT_SET_SIZE
+        // and wasi_unstable::RIGHT_FD_WRITE rights.
         status = wasi_path_open(
             dir_fd,
             0,
@@ -121,7 +141,7 @@ unsafe fn test_truncation_rights(dir_fd: wasi_unstable::Fd) {
         assert_eq!(
             status,
             wasi_unstable::raw::__WASI_ENOTCAPABLE,
-            "truncating a file without path_filestat_set_size right",
+            "truncating a file without path_filestat_set_size right and without RIGHT_FD_WRITE",
         );
         assert_eq!(
             file_fd,
