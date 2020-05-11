@@ -167,7 +167,7 @@ cfg_if::cfg_if! {
                         fn GetPcFromUContext(cx: *mut libc::c_void) -> *const u8;
                     }
                     GetPcFromUContext(cx)
-                } else if #[cfg(target_os = "macos")] {
+                } else if #[cfg(any(target_os = "macos", target_os = "freebsd"))] {
                     // FIXME(rust-lang/libc#1702) - once that lands and is
                     // released we should inline the definition here
                     extern "C" {

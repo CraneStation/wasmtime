@@ -27,6 +27,15 @@ void* GetPcFromUContext(ucontext_t *cx) {
 }
 #endif
 
+#if defined(__FreeBSD__) && defined(__x86_64__)
+#include <sys/ucontext.h>
+
+void* GetPcFromUContext(ucontext_t *cx) {
+  return (void*) cx->uc_mcontext.mc_rip;
+}
+#endif
+
+
 #if defined(__linux__) && defined(__aarch64__)
 #include <sys/ucontext.h>
 
