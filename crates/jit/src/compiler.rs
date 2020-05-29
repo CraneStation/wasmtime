@@ -167,7 +167,7 @@ impl Compiler {
             // show up be sure to log it in case anyone's listening and there's
             // an accidental bug.
             if relocations.len() > 0 {
-                log::info!("relocations found in trampoline for {:?}", sig);
+                log::warn!("relocations found in trampoline for {:?}", sig);
                 trampoline_relocations.insert(index, relocations);
             }
         }

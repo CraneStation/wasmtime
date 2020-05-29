@@ -11,7 +11,7 @@ use crate::Backend;
 use cranelift_codegen::binemit::{self, CodeInfo};
 use cranelift_codegen::entity::{entity_impl, PrimaryMap};
 use cranelift_codegen::{ir, isa, CodegenError, Context};
-use log::info;
+use log::debug;
 use std::borrow::ToOwned;
 use std::convert::TryInto;
 use std::string::String;
@@ -576,7 +576,7 @@ where
     where
         TS: binemit::TrapSink,
     {
-        info!(
+        debug!(
             "defining function {}: {}",
             func,
             ctx.func.display(self.backend.isa())
@@ -618,7 +618,7 @@ where
         func: FuncId,
         bytes: &[u8],
     ) -> ModuleResult<ModuleCompiledFunction> {
-        info!("defining function {} with bytes", func);
+        debug!("defining function {} with bytes", func);
         let info = &self.contents.functions[func];
         if info.compiled.is_some() {
             return Err(ModuleError::DuplicateDefinition(info.decl.name.clone()));

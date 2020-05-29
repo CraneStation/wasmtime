@@ -6,7 +6,7 @@
 //! Background tasks can be CPU intensive, but the worker thread has low priority.
 
 use super::{fs_write_atomic, CacheConfig};
-use log::{debug, info, trace, warn};
+use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::collections::HashMap;
@@ -100,7 +100,7 @@ impl Worker {
         let sent_event = self.sender.try_send(event.clone());
 
         if let Err(ref err) = sent_event {
-            info!(
+            warn!(
                 "Failed to send asynchronously message to worker thread, \
                  event: {:?}, error: {}",
                 event, err
