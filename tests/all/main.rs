@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 mod cli_tests;
 mod custom_signal_handler;
 mod debug;

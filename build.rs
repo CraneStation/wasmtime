@@ -22,7 +22,6 @@ fn main() -> anyhow::Result<()> {
         #[cfg(feature = "lightbeam")]
         "Lightbeam",
     ] {
-        writeln!(out, "#[cfg(test)]")?;
         writeln!(out, "#[allow(non_snake_case)]")?;
         writeln!(out, "mod {} {{", strategy)?;
 
@@ -150,14 +149,14 @@ fn write_testsuite_tests(
     let path = path.as_ref();
     let testname = extract_name(path);
 
-    writeln!(out, "#[test]")?;
+    writeln!(out, "mk_test! {{")?;
     if ignore(testsuite, &testname, strategy) {
         writeln!(out, "#[ignore]")?;
     }
-    writeln!(out, "fn r#{}() {{", &testname)?;
     writeln!(
         out,
-        "crate::wast::run_wast(r#\"{}\"#, crate::wast::Strategy::{}).unwrap();",
+        "r#{}, r#\"{}\"#, Strategy::{}",
+        &testname,
         path.display(),
         strategy
     )?;

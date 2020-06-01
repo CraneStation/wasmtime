@@ -48,6 +48,7 @@ tempfile = "3.1.0"
 test-programs = { path = "crates/test-programs" }
 wasmtime-fuzzing = { path = "crates/fuzzing" }
 wasmtime-runtime = { path = "crates/runtime" }
+wast = "14.0.0"
 
 [build-dependencies]
 anyhow = "1.0.19"
@@ -70,6 +71,7 @@ members = [
 
 [features]
 default = ["jitdump", "wasmtime/wat"]
+benches = []
 lightbeam = [
     "wasmtime-environ/lightbeam",
     "wasmtime-jit/lightbeam",

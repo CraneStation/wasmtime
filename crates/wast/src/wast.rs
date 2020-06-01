@@ -36,7 +36,7 @@ pub struct WastContext {
     store: Store,
 }
 
-enum Outcome<T = Vec<Val>> {
+pub enum Outcome<T = Vec<Val>> {
     Ok(T),
     Trap(Trap),
 }
@@ -120,7 +120,7 @@ impl WastContext {
     }
 
     /// Define a module and register it.
-    fn module(&mut self, instance_name: Option<&str>, module: &[u8]) -> Result<()> {
+    pub fn module(&mut self, instance_name: Option<&str>, module: &[u8]) -> Result<()> {
         let instance = match self.instantiate(module)? {
             Outcome::Ok(i) => i,
             Outcome::Trap(e) => return Err(e).context("instantiation failed"),
@@ -133,7 +133,7 @@ impl WastContext {
     }
 
     /// Register an instance to make it available for performing actions.
-    fn register(&mut self, name: Option<&str>, as_name: &str) -> Result<()> {
+    pub fn register(&mut self, name: Option<&str>, as_name: &str) -> Result<()> {
         match name {
             Some(name) => self.linker.alias(name, as_name),
             None => {
@@ -148,7 +148,7 @@ impl WastContext {
     }
 
     /// Invoke an exported function from an instance.
-    fn invoke(
+    pub fn invoke(
         &mut self,
         instance_name: Option<&str>,
         field: &str,
