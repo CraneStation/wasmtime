@@ -1,0 +1,12 @@
+test verifier
+target x86_64
+
+function %test(r64) -> r64 { 
+    block0(v0: r64): 
+        v1 = null.r64 
+        v2 = is_null v0 
+        brz v2, block2(v0)
+        jump block2(v1)
+    block2(v3: r64): 
+        return v3
+}

@@ -209,10 +209,18 @@ impl Context {
             emit_stackmaps(func, domtree, &self.liveness, &mut self.tracker, isa);
         } else {
             // Make sure no references are used.
-            for val in func.dfg.values() {
-                let ty = func.dfg.value_type(val);
-                if ty.lane_type().is_ref() {
-                    panic!("reference types were found but safepoints were not enabled.");
+            for block in func.layout.blocks() {
+                for inst in func.layout.block_insts(block) {
+                    for val in func.dfg.inst_results(inst) {
+                        let ty = func.dfg.value_type(*val);
+                        if ty.lane_type().is_ref() {
+                            errors.report((
+                                inst,
+                                "reference types were found but safepoints were not enabled.",
+                            ));
+                            return Err(errors.into());
+                        }
+                    }
                 }
             }
         }
