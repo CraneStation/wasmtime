@@ -27,10 +27,15 @@ mod builder;
 mod context;
 mod data_segment;
 mod module;
+mod patchable;
 mod table;
 
 pub use crate::builder::{utils, ObjectBuilder, ObjectBuilderTarget};
 pub use crate::module::emit_module;
+pub use crate::patchable::{
+    convert_object_elf_to_loadable_file, ensure_supported_elf_format, patch_loadable_file,
+    sanitize_loadable_file,
+};
 
 /// Version number of this crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

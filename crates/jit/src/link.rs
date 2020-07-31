@@ -2,7 +2,7 @@
 
 use crate::object::utils::try_parse_func_name;
 use object::read::{Object, ObjectSection, Relocation, RelocationTarget};
-use object::{elf, File, RelocationEncoding, RelocationKind};
+use object::{elf, File, RelocationEncoding, RelocationKind, SymbolKind};
 use std::ptr::{read_unaligned, write_unaligned};
 use wasmtime_environ::entity::PrimaryMap;
 use wasmtime_environ::wasm::DefinedFuncIndex;
@@ -19,18 +19,27 @@ use wasmtime_runtime::VMFunctionBody;
 /// TODO refactor logic to remove panics and add defensive code the image data
 /// becomes untrusted.
 pub fn link_module(
-    obj: &File,
+    obj_data: &mut [u8],
     module: &Module,
-    code_range: &mut [u8],
     finished_functions: &PrimaryMap<DefinedFuncIndex, *mut [VMFunctionBody]>,
-) {
-    // Read the ".text" section and process its relocations.
-    let text_section = obj.section_by_name(".text").unwrap();
-    let body = code_range.as_ptr() as *const VMFunctionBody;
+) -> Result<(), String> {
+    let obj = File::parse(obj_data).map_err(|_| "Unable to read obj".to_string())?;
 
-    for (offset, r) in text_section.relocations() {
-        apply_reloc(module, obj, finished_functions, body, offset, r);
+    for section in obj.sections() {
+        let body_offset = match section.file_range() {
+            Some((start, _)) => start as usize,
+            None => {
+                continue;
+            }
+        };
+        let body = unsafe { obj_data.as_ptr().add(body_offset) } as *const VMFunctionBody;
+
+        for (offset, r) in section.relocations() {
+            apply_reloc(module, &obj, finished_functions, body, offset, r);
+        }
     }
+
+    Ok(())
 }
 
 fn apply_reloc(
@@ -44,8 +53,11 @@ fn apply_reloc(
     let target_func_address: usize = match r.target() {
         RelocationTarget::Symbol(i) => {
             // Processing relocation target is a named symbols that is compiled
-            // wasm function or runtime libcall.
+            // wasm function or runtime libcall. These are `SymbolKind::Text`.
             let sym = obj.symbol_by_index(i).unwrap();
+            if sym.kind() != SymbolKind::Text {
+                return;
+            }
             match sym.name() {
                 Some(name) => {
                     if let Some(index) = try_parse_func_name(name) {
@@ -67,7 +79,15 @@ fn apply_reloc(
         }
         _ => panic!("unexpected relocation target"),
     };
+    patch_reloc_entry(body, offset, target_func_address, r)
+}
 
+fn patch_reloc_entry(
+    body: *const VMFunctionBody,
+    offset: u64,
+    target_func_address: usize,
+    r: Relocation,
+) {
     match (r.kind(), r.encoding(), r.size()) {
         #[cfg(target_pointer_width = "64")]
         (RelocationKind::Absolute, RelocationEncoding::Generic, 64) => unsafe {
@@ -130,6 +150,25 @@ fn apply_reloc(
         },
         other => panic!("unsupported reloc kind: {:?}", other),
     }
+}
+
+/// Sanitizes relocation information (they may point to real addresses).
+pub fn unlink_module(obj_data: &mut [u8]) -> Result<(), String> {
+    let obj = File::parse(obj_data).map_err(|_| "Unable to read obj".to_string())?;
+    for section in obj.sections() {
+        let body_offset = match section.file_range() {
+            Some((start, _)) => start as usize,
+            None => {
+                continue;
+            }
+        };
+        let body = unsafe { obj_data.as_ptr().add(body_offset) } as *const VMFunctionBody;
+        const NON_EXISTENT_ADDRESS: usize = 0;
+        for (offset, r) in section.relocations() {
+            patch_reloc_entry(body, offset, NON_EXISTENT_ADDRESS, r);
+        }
+    }
+    Ok(())
 }
 
 fn to_libcall_address(name: &str) -> Option<usize> {

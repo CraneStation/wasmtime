@@ -6,16 +6,16 @@
 use crate::code_memory::CodeMemory;
 use crate::compiler::{Compilation, Compiler};
 use crate::imports::resolve_imports;
-use crate::link::link_module;
+use crate::link::{link_module, unlink_module};
 use crate::object::ObjectUnwindInfo;
 use crate::resolver::Resolver;
-use object::File as ObjectFile;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use thiserror::Error;
-use wasmtime_debug::{create_gdbjit_image, read_debuginfo};
+use wasmtime_debug::read_debuginfo;
 use wasmtime_environ::entity::{BoxedSlice, PrimaryMap};
 use wasmtime_environ::isa::TargetIsa;
 use wasmtime_environ::wasm::{DefinedFuncIndex, SignatureIndex};
@@ -23,6 +23,7 @@ use wasmtime_environ::{
     CompileError, DataInitializer, DataInitializerLocation, Module, ModuleAddressMap,
     ModuleEnvironment, ModuleTranslation, StackMaps, Traps,
 };
+use wasmtime_obj::{ensure_supported_elf_format, patch_loadable_file, sanitize_loadable_file};
 use wasmtime_profiling::ProfilingAgent;
 use wasmtime_runtime::VMInterrupts;
 use wasmtime_runtime::{
@@ -59,7 +60,7 @@ pub struct CompilationArtifacts {
     module: Module,
 
     /// ELF image with functions code.
-    obj: Box<[u8]>,
+    obj: Vec<u8>,
 
     /// Unwind information for function code.
     unwind_info: Box<[ObjectUnwindInfo]>,
@@ -117,15 +118,9 @@ impl CompilationArtifacts {
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
-        let obj = obj.write().map_err(|_| {
-            SetupError::Instantiate(InstantiationError::Resource(
-                "failed to create image memory".to_string(),
-            ))
-        })?;
-
         Ok(Self {
             module,
-            obj: obj.into_boxed_slice(),
+            obj,
             unwind_info: unwind_info.into_boxed_slice(),
             data_initializers,
             traps,
@@ -143,9 +138,22 @@ unsafe impl Sync for FinishedFunctions {}
 
 /// Container for data needed for an Instance function to exist.
 pub struct ModuleCode {
-    code_memory: CodeMemory,
-    #[allow(dead_code)]
-    dbg_jit_registration: Option<GdbJitImageRegistration>,
+    code_memory: ManuallyDrop<CodeMemory>,
+    dbg_jit_registration: ManuallyDrop<Option<GdbJitImageRegistration>>,
+    // Note that this is stored as a `usize` instead of a `*const` or `*mut`
+    // pointer to allow this structure to be natively `Send` and `Sync` without
+    // `unsafe impl`. This type is sendable across threads and shareable since
+    // the coordination all happens at the OS layer.
+    image_range: std::ops::Range<usize>,
+}
+
+impl Drop for ModuleCode {
+    fn drop(&mut self) {
+        unsafe {
+            ManuallyDrop::drop(&mut self.dbg_jit_registration);
+            ManuallyDrop::drop(&mut self.code_memory);
+        }
+    }
 }
 
 /// A compiled wasm module, ready to be instantiated.
@@ -158,7 +166,6 @@ pub struct CompiledModule {
     traps: Traps,
     stack_maps: StackMaps,
     address_transform: ModuleAddressMap,
-    obj: Box<[u8]>,
     unwind_info: Box<[ObjectUnwindInfo]>,
 }
 
@@ -192,8 +199,8 @@ impl CompiledModule {
 
         // Allocate all of the compiled functions into executable memory,
         // copying over their contents.
-        let (code_memory, code_range, finished_functions, trampolines) =
-            build_code_memory(isa, &obj, &module, &unwind_info).map_err(|message| {
+        let (code_memory, image_range, finished_functions, trampolines) =
+            build_code_memory(isa, obj, &module, &unwind_info).map_err(|message| {
                 SetupError::Instantiate(InstantiationError::Resource(format!(
                     "failed to build code memory for functions: {}",
                     message
@@ -202,11 +209,12 @@ impl CompiledModule {
 
         // Register GDB JIT images; initialize profiler and load the wasm module.
         let dbg_jit_registration = if debug_info {
-            let bytes = create_dbg_image(obj.to_vec(), code_range, &module, &finished_functions)?;
+            let bytes = unsafe { std::slice::from_raw_parts(image_range.0, image_range.1) };
+            ensure_supported_elf_format(bytes).map_err(SetupError::DebugInfo)?;
 
-            profiler.module_load(&module, &finished_functions, Some(&bytes));
+            profiler.module_load(&module, &finished_functions, Some(bytes));
 
-            let reg = GdbJitImageRegistration::register(bytes);
+            let reg = GdbJitImageRegistration::register(image_range.0, image_range.1);
             Some(reg)
         } else {
             profiler.module_load(&module, &finished_functions, None);
@@ -218,8 +226,9 @@ impl CompiledModule {
         Ok(Self {
             module: Arc::new(module),
             code: Arc::new(ModuleCode {
-                code_memory,
-                dbg_jit_registration,
+                code_memory: ManuallyDrop::new(code_memory),
+                dbg_jit_registration: ManuallyDrop::new(dbg_jit_registration),
+                image_range: image_range.0 as usize..image_range.0 as usize + image_range.1,
             }),
             finished_functions,
             trampolines,
@@ -227,16 +236,23 @@ impl CompiledModule {
             traps,
             stack_maps,
             address_transform,
-            obj,
             unwind_info,
         })
     }
 
     /// Extracts `CompilationArtifacts` from the compiled module.
     pub fn to_compilation_artifacts(&self) -> CompilationArtifacts {
+        // Get ELF image bytes and sanitize that.
+        let mut obj = Vec::from(unsafe {
+            let range = &self.code.image_range;
+            std::slice::from_raw_parts(range.start as *const u8, range.len())
+        });
+        drop(unlink_module(&mut obj));
+        drop(sanitize_loadable_file(&mut obj));
+
         CompilationArtifacts {
             module: (*self.module).clone(),
-            obj: self.obj.clone(),
+            obj,
             unwind_info: self.unwind_info.clone(),
             data_initializers: self.data_initializers.clone(),
             traps: self.traps.clone(),
@@ -372,23 +388,9 @@ impl OwnedDataInitializer {
     }
 }
 
-fn create_dbg_image(
-    obj: Vec<u8>,
-    code_range: (*const u8, usize),
-    module: &Module,
-    finished_functions: &PrimaryMap<DefinedFuncIndex, *mut [VMFunctionBody]>,
-) -> Result<Vec<u8>, SetupError> {
-    let funcs = finished_functions
-        .values()
-        .map(|allocated: &*mut [VMFunctionBody]| (*allocated) as *const u8)
-        .collect::<Vec<_>>();
-    create_gdbjit_image(obj, code_range, module.local.num_imported_funcs, &funcs)
-        .map_err(SetupError::DebugInfo)
-}
-
 fn build_code_memory(
     isa: &dyn TargetIsa,
-    obj: &[u8],
+    obj: Vec<u8>,
     module: &Module,
     unwind_info: &Box<[ObjectUnwindInfo]>,
 ) -> Result<
@@ -400,11 +402,9 @@ fn build_code_memory(
     ),
     String,
 > {
-    let obj = ObjectFile::parse(obj).map_err(|_| "Unable to read obj".to_string())?;
-
     let mut code_memory = CodeMemory::new();
 
-    let allocation = code_memory.allocate_for_object(&obj, unwind_info)?;
+    let mut allocation = code_memory.allocate_for_object(&obj, &unwind_info)?;
 
     // Second, create a PrimaryMap from result vector of pointers.
     let mut finished_functions = PrimaryMap::new();
@@ -424,13 +424,18 @@ fn build_code_memory(
     }
 
     let code_range = allocation.code_range();
-
-    link_module(&obj, &module, code_range, &finished_functions);
-
     let code_range = (code_range.as_ptr(), code_range.len());
 
+    let obj = allocation.as_mut_slice();
+    link_module(obj, &module, &finished_functions)?;
+
+    patch_loadable_file(obj, code_range).map_err(|e| e.to_string())?;
+
+    let obj = (obj.as_ptr(), obj.len());
+
     // Make all code compiled thus far executable.
+    // TODO publish only .text section of ELF object.
     code_memory.publish(isa);
 
-    Ok((code_memory, code_range, finished_functions, trampolines))
+    Ok((code_memory, obj, finished_functions, trampolines))
 }

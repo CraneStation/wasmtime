@@ -1,15 +1,15 @@
 //! Object file generation.
 
 use super::trampoline::build_trampoline;
+use anyhow::Error;
 use cranelift_frontend::FunctionBuilderContext;
-use object::write::Object;
 use serde::{Deserialize, Serialize};
 use wasmtime_debug::DwarfSection;
 use wasmtime_environ::entity::{EntityRef, PrimaryMap};
 use wasmtime_environ::isa::{unwind::UnwindInfo, TargetIsa};
 use wasmtime_environ::wasm::{FuncIndex, SignatureIndex};
 use wasmtime_environ::{Compilation, Module, Relocations};
-use wasmtime_obj::{ObjectBuilder, ObjectBuilderTarget};
+use wasmtime_obj::{convert_object_elf_to_loadable_file, ObjectBuilder, ObjectBuilderTarget};
 
 pub use wasmtime_obj::utils;
 
@@ -27,7 +27,7 @@ pub(crate) fn build_object(
     compilation: Compilation,
     relocations: Relocations,
     dwarf_sections: Vec<DwarfSection>,
-) -> Result<(Object, Vec<ObjectUnwindInfo>), anyhow::Error> {
+) -> Result<(Vec<u8>, Vec<ObjectUnwindInfo>), Error> {
     const CODE_SECTION_ALIGNMENT: u64 = 0x1000;
     assert_eq!(
         isa.triple().architecture.endianness(),
@@ -73,5 +73,9 @@ pub(crate) fn build_object(
         .set_dwarf_sections(dwarf_sections);
     let obj = builder.build()?;
 
-    Ok((obj, unwind_info))
+    let mut bytes = obj.write()?;
+
+    convert_object_elf_to_loadable_file(&mut bytes);
+
+    Ok((bytes, unwind_info))
 }

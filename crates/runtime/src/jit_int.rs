@@ -59,21 +59,19 @@ lazy_static! {
 /// Registeration for JIT image
 pub struct GdbJitImageRegistration {
     entry: Pin<Box<JITCodeEntry>>,
-    file: Pin<Box<[u8]>>,
+    file: *const u8,
 }
 
 impl GdbJitImageRegistration {
     /// Registers JIT image using __jit_debug_register_code
-    pub fn register(file: Vec<u8>) -> Self {
-        let file = Pin::new(file.into_boxed_slice());
-
+    pub fn register(file: *const u8, len: usize) -> Self {
         // Create a code entry for the file, which gives the start and size
         // of the symbol file.
         let mut entry = Pin::new(Box::new(JITCodeEntry {
             next_entry: ptr::null_mut(),
             prev_entry: ptr::null_mut(),
-            symfile_addr: file.as_ptr(),
-            symfile_size: file.len() as u64,
+            symfile_addr: file,
+            symfile_size: len as u64,
         }));
 
         unsafe {
@@ -84,8 +82,8 @@ impl GdbJitImageRegistration {
     }
 
     /// JIT image used in registration
-    pub fn file(&self) -> &[u8] {
-        &self.file
+    pub fn file(&self) -> *const u8 {
+        self.file
     }
 }
 

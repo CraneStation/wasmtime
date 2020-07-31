@@ -3,7 +3,6 @@
 use crate::instantiate::SetupError;
 use crate::object::{build_object, ObjectUnwindInfo};
 use cranelift_codegen::ir;
-use object::write::Object;
 use std::hash::{Hash, Hasher};
 use wasmtime_debug::{emit_dwarf, DebugInfoData, DwarfSection};
 use wasmtime_environ::entity::{EntityRef, PrimaryMap};
@@ -97,7 +96,7 @@ fn transform_dwarf_data(
 
 #[allow(missing_docs)]
 pub struct Compilation {
-    pub obj: Object,
+    pub obj: Vec<u8>,
     pub unwind_info: Vec<ObjectUnwindInfo>,
     pub traps: Traps,
     pub stack_maps: StackMaps,

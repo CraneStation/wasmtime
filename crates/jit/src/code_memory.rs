@@ -9,7 +9,7 @@ use object::read::{File as ObjectFile, Object, ObjectSection};
 use region;
 use std::collections::BTreeMap;
 use std::mem::ManuallyDrop;
-use std::{cmp, mem};
+use std::{cmp, mem, ops::Range};
 use wasmtime_environ::{
     isa::{unwind::UnwindInfo, TargetIsa},
     wasm::{FuncIndex, SignatureIndex},
@@ -53,13 +53,17 @@ impl Drop for CodeMemoryEntry {
 
 pub(crate) struct CodeMemoryObjectAllocation<'a> {
     buf: &'a mut [u8],
+    code_range: Range<usize>,
     funcs: BTreeMap<FuncIndex, (usize, usize)>,
     trampolines: BTreeMap<SignatureIndex, (usize, usize)>,
 }
 
 impl<'a> CodeMemoryObjectAllocation<'a> {
-    pub fn code_range(self) -> &'a mut [u8] {
-        self.buf
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        &mut self.buf
+    }
+    pub fn code_range(&self) -> &[u8] {
+        &self.buf[self.code_range.clone()]
     }
     pub fn funcs(&'a self) -> impl Iterator<Item = (FuncIndex, &'a mut [VMFunctionBody])> + 'a {
         let buf = self.buf as *const _ as *mut [u8];
@@ -292,27 +296,30 @@ impl CodeMemory {
     /// Returns references to functions and trampolines defined there.
     pub(crate) fn allocate_for_object<'a>(
         &'a mut self,
-        obj: &ObjectFile,
+        obj_bytes: &[u8],
         unwind_info: &[ObjectUnwindInfo],
     ) -> Result<CodeMemoryObjectAllocation<'a>, String> {
-        let text_section = obj.section_by_name(".text").unwrap();
+        // Allocate chunk memory that spans entire object file.
+        let (buf, registry, start) = self.allocate(obj_bytes.len())?;
+        buf.copy_from_slice(obj_bytes);
 
-        if text_section.size() == 0 {
+        let obj = ObjectFile::parse(obj_bytes).map_err(|_| "Unable to read obj".to_string())?;
+        let (text_start, text_size) = obj
+            .section_by_name(".text")
+            .and_then(|section| section.file_range())
+            .unwrap_or_else(|| (0, 0));
+
+        if text_size == 0 {
             // No code in the image.
             return Ok(CodeMemoryObjectAllocation {
-                buf: &mut [],
+                buf: &mut buf[..obj_bytes.len()],
+                code_range: 0..0,
                 funcs: BTreeMap::new(),
                 trampolines: BTreeMap::new(),
             });
         }
 
-        // Allocate chunk memory that spans entire code section.
-        let (buf, registry, start) = self.allocate(text_section.size() as usize)?;
-        buf.copy_from_slice(
-            text_section
-                .data()
-                .map_err(|_| "cannot read section data".to_string())?,
-        );
+        let start = start + text_start as usize;
 
         // Track locations of all defined functions and trampolines.
         let mut funcs = BTreeMap::new();
@@ -357,7 +364,8 @@ impl CodeMemory {
         }
 
         Ok(CodeMemoryObjectAllocation {
-            buf: &mut buf[..text_section.size() as usize],
+            buf: &mut buf[..obj_bytes.len()],
+            code_range: start..start + text_size as usize,
             funcs,
             trampolines,
         })
