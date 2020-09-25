@@ -1,5 +1,5 @@
 use crate::frame_info::GlobalFrameInfoRegistration;
-use crate::runtime::{Config, Engine};
+use crate::runtime::{Config, Engine, EngineJitCodeRegistration, ModuleRegistration};
 use crate::types::{EntityType, ExportType, ExternType, ImportType};
 use anyhow::{bail, Context, Result};
 use std::path::Path;
@@ -81,6 +81,8 @@ pub struct Module {
     engine: Engine,
     compiled: Arc<CompiledModule>,
     frame_info_registration: Arc<Mutex<Option<Option<Arc<GlobalFrameInfoRegistration>>>>>,
+    jit_code_registration: Arc<EngineJitCodeRegistration>,
+    module_registration: Arc<Option<ModuleRegistration>>,
 }
 
 impl Module {
@@ -316,10 +318,16 @@ impl Module {
             &*engine.config().profiler,
         )?;
 
+        let compiled = Arc::new(compiled);
+        let jit_code_registration = engine.jit_code().register_jit_code(&compiled);
+        let module_registration = engine.register_module(&compiled, binary);
+
         Ok(Module {
             engine: engine.clone(),
-            compiled: Arc::new(compiled),
+            compiled,
             frame_info_registration: Arc::new(Mutex::new(None)),
+            jit_code_registration: Arc::new(jit_code_registration),
+            module_registration: Arc::new(Some(module_registration)),
         })
     }
 
@@ -361,14 +369,19 @@ impl Module {
             &*engine.config().profiler,
         )?;
 
+        let compiled = Arc::new(compiled);
+        let jit_code_registration = engine.jit_code().register_jit_code(&compiled);
+
         Ok(Module {
             engine: engine.clone(),
-            compiled: Arc::new(compiled),
+            compiled,
             frame_info_registration: Arc::new(Mutex::new(None)),
+            jit_code_registration: Arc::new(jit_code_registration),
+            module_registration: Arc::new(None),
         })
     }
 
-    pub(crate) fn compiled_module(&self) -> &CompiledModule {
+    pub(crate) fn compiled_module(&self) -> &Arc<CompiledModule> {
         &self.compiled
     }
 
@@ -591,6 +604,13 @@ impl Module {
         let ret = super::frame_info::register(&self.compiled).map(Arc::new);
         *info = Some(ret.clone());
         return ret;
+    }
+
+    /// Sets a breakpoint in the module. The `offset` is wasm module bytecode
+    /// offset for the target instruction.
+    pub fn set_breakpoint(&self, offset: usize) {
+        let reg = (*self.module_registration).as_ref().unwrap();
+        self.engine.add_breakpoints(reg.id(), offset as u64);
     }
 }
 

@@ -145,6 +145,30 @@ impl CodeMemory {
         self.published = self.entries.len();
     }
 
+    /// Quickly patches published code.
+    pub fn patch_published(&self, addr: usize, len: usize, f: &mut dyn FnMut()) {
+        // TODO make &mut self?
+        debug_assert!(len > 0);
+        // Slow lookup of code range to patch.
+        for CodeMemoryEntry { mmap: m, .. } in &self.entries[..self.published] {
+            let ptr = m.as_ptr() as usize;
+            let m_len = m.len();
+            if ptr > addr + len || ptr + m_len < addr {
+                return;
+            }
+            assert!(ptr <= addr && addr + len <= ptr + m_len);
+            unsafe {
+                region::protect(m.as_ptr(), m.len(), region::Protection::READ_WRITE)
+                    .expect("unable to make memory writable");
+            }
+            f();
+            unsafe {
+                region::protect(m.as_ptr(), m.len(), region::Protection::READ_EXECUTE)
+                    .expect("unable to make memory readonly and executable");
+            }
+        }
+    }
+
     /// Allocate `size` bytes of memory which can be made executable later by
     /// calling `publish()`. Note that we allocate the memory as writeable so
     /// that it can be written to and patched, though we make it readonly before

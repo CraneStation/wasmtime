@@ -42,6 +42,8 @@ libc = "0.2.60"
 log = "0.4.8"
 rayon = "1.2.1"
 humantime = "1.3.0"
+gdb-remote-protocol = { git = "https://github.com/yurydelendik/rust-gdb-remote-protocol", rev = "wasm", features = ["wasm"] }
+# gdb-remote-protocol = { path = "../junk/rust-gdb-remote-protocol", features = ["wasm"] }
 
 [dev-dependencies]
 env_logger = "0.7.1"

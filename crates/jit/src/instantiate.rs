@@ -351,6 +351,46 @@ impl CompiledModule {
     pub fn code(&self) -> &Arc<ModuleCode> {
         &self.code
     }
+
+    /// Set a breakpoint.
+    pub fn set_breakpoint(&self, offset: usize) -> Vec<wasmtime_runtime::debugger::BreakpointData> {
+        let mut instrs = Vec::new();
+        // TODO better offset to function lookup.
+        for (
+            i,
+            FunctionInfo {
+                address_map: ref t, ..
+            },
+        ) in self.funcs.iter()
+        {
+            if t.start_srcloc.bits() <= offset as u32 && (offset as u32) < t.end_srcloc.bits() {
+                let mut f = t
+                    .instructions
+                    .iter()
+                    .filter(|i| i.srcloc.bits() == offset as u32 && i.code_len > 0);
+                match f.next() {
+                    Some(c) => {
+                        let body = self.finished_functions.0[i] as *mut u8;
+                        let c = unsafe { body.add(c.code_offset) };
+                        instrs.push(c as usize);
+                    }
+                    None => (),
+                }
+            }
+        }
+        instrs
+            .into_iter()
+            .map(|c| wasmtime_runtime::debugger::BreakpointData::new(c, self).unwrap())
+            .collect()
+    }
+}
+
+impl wasmtime_runtime::debugger::PatchableCode for CompiledModule {
+    /// Patched JIT code. Temporary enables write capabilities for
+    /// the specified region -- the callback can mutate the code there.
+    fn patch_jit_code(&self, addr: usize, len: usize, f: &mut dyn FnMut()) {
+        self.code.code_memory.patch_published(addr, len, f);
+    }
 }
 
 /// Similar to `DataInitializer`, but owns its own copy of the data rather

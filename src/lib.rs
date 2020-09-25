@@ -25,6 +25,7 @@
 )]
 
 pub mod commands;
+mod gdb_server;
 mod obj;
 
 use anyhow::{bail, Result};

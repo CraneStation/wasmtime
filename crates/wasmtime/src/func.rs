@@ -824,6 +824,7 @@ pub(crate) fn invoke_wasm_and_catch_traps(
             store.engine().config().max_wasm_stack,
             |addr| store.is_in_jit_code(addr),
             signalhandler.as_deref(),
+            Some(store.engine()),
             closure,
         )
         .map_err(Trap::from_runtime)

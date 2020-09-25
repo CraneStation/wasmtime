@@ -1,24 +1,32 @@
+use crate::debugger::{
+    DebuggerAgent, DebuggerJitCodeRegistration, DebuggerModule, NullDebuggerAgent,
+};
 use crate::externals::MemoryCreator;
 use crate::trampoline::{MemoryCreatorProxy, StoreInstanceHandle};
 use crate::Module;
 use anyhow::{bail, Result};
 use std::cell::RefCell;
 use std::cmp;
+use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 #[cfg(feature = "cache")]
 use std::path::Path;
 use std::rc::{Rc, Weak};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Weak as SyncWeak};
 use target_lexicon::Triple;
 use wasmparser::Validator;
 #[cfg(feature = "cache")]
 use wasmtime_cache::CacheConfig;
 use wasmtime_environ::settings::{self, Configurable, SetError};
 use wasmtime_environ::{ir, isa, isa::TargetIsa, wasm, Tunables};
-use wasmtime_jit::{native, CompilationStrategy, Compiler};
+use wasmtime_jit::{native, CompilationStrategy, CompiledModule, Compiler};
 use wasmtime_profiling::{JitDumpAgent, NullProfilerAgent, ProfilingAgent, VTuneAgent};
+use wasmtime_runtime::debugger::{
+    BreakpointData, DebuggerContext, DebuggerContextData, DebuggerPauseKind, DebuggerResumeAction,
+    PatchableCode,
+};
 use wasmtime_runtime::{
     debug_builtins, InstanceHandle, RuntimeMemoryCreator, SignalHandler, SignatureRegistry,
     StackMapRegistry, VMExternRef, VMExternRefActivationsTable, VMInterrupts,
@@ -42,6 +50,7 @@ pub struct Config {
     pub(crate) strategy: CompilationStrategy,
     #[cfg(feature = "cache")]
     pub(crate) cache_config: CacheConfig,
+    pub(crate) debugger: Arc<Mutex<dyn DebuggerAgent>>,
     pub(crate) profiler: Arc<dyn ProfilingAgent>,
     pub(crate) memory_creator: Option<MemoryCreatorProxy>,
     pub(crate) max_wasm_stack: usize,
@@ -95,6 +104,7 @@ impl Config {
             strategy: CompilationStrategy::Auto,
             #[cfg(feature = "cache")]
             cache_config: CacheConfig::new_cache_disabled(),
+            debugger: Arc::new(Mutex::new(NullDebuggerAgent)),
             profiler: Arc::new(NullProfilerAgent),
             memory_creator: None,
             max_wasm_stack: 1 << 20,
@@ -298,6 +308,12 @@ impl Config {
             ProfilingStrategy::None => Arc::new(NullProfilerAgent),
         };
         Ok(self)
+    }
+
+    /// Sets debugger.
+    pub fn debugger(&mut self, debugger: impl DebuggerAgent + 'static) -> &mut Self {
+        self.debugger = Arc::new(Mutex::new(debugger));
+        self
     }
 
     /// Configures whether the debug verifier of Cranelift is enabled or not.
@@ -765,9 +781,77 @@ pub struct Engine {
     inner: Arc<EngineInner>,
 }
 
-struct EngineInner {
+pub(crate) struct EngineInner {
     config: Config,
     compiler: Compiler,
+    debugger_data: Mutex<Option<Box<dyn std::any::Any + Send + Sync>>>,
+    jit_code: EngineJitCode,
+}
+
+impl EngineInner {
+    pub(crate) fn config(&self) -> &Config {
+        &self.config
+    }
+    pub(crate) fn jit_code(&self) -> &EngineJitCode {
+        &self.jit_code
+    }
+    pub(crate) fn find_breakpoint(&self, addr: usize) -> Option<*const BreakpointData> {
+        let lock = self.config.debugger.lock().unwrap();
+        lock.find_breakpoint(addr)
+    }
+}
+
+impl From<Arc<EngineInner>> for Engine {
+    fn from(inner: Arc<EngineInner>) -> Self {
+        Self { inner }
+    }
+}
+
+pub(crate) struct EngineJitCode {
+    jit_code_ranges: Arc<Mutex<Vec<(usize, usize, SyncWeak<CompiledModule>)>>>,
+}
+
+impl EngineJitCode {
+    fn new() -> Self {
+        Self {
+            jit_code_ranges: Arc::new(Mutex::new(vec![])),
+        }
+    }
+    pub(crate) fn lookup_jit_code_range<'a>(
+        &'a self,
+        addr: usize,
+    ) -> Option<(usize, usize, SyncWeak<CompiledModule>)> {
+        let ranges = self.jit_code_ranges.lock().unwrap();
+        ranges.iter().find(|r| r.0 <= addr && addr < r.1).cloned()
+    }
+    pub(crate) fn register_jit_code(
+        &self,
+        module: &Arc<CompiledModule>,
+    ) -> EngineJitCodeRegistration {
+        use std::iter::FromIterator;
+        let weak = Arc::downgrade(module);
+        let ranges = module
+            .jit_code_ranges()
+            .map(|(start, end)| (start, end, weak.clone()));
+        let mut jit_code_ranges = self.jit_code_ranges.lock().unwrap();
+        jit_code_ranges.extend(ranges);
+        EngineJitCodeRegistration {
+            jit_code_ranges: self.jit_code_ranges.clone(),
+            ranges: BTreeSet::from_iter(module.jit_code_ranges()),
+        }
+    }
+}
+
+pub(crate) struct EngineJitCodeRegistration {
+    jit_code_ranges: Arc<Mutex<Vec<(usize, usize, SyncWeak<CompiledModule>)>>>,
+    ranges: BTreeSet<(usize, usize)>,
+}
+
+impl Drop for EngineJitCodeRegistration {
+    fn drop(&mut self) {
+        let mut jit_code_ranges = self.jit_code_ranges.lock().unwrap();
+        jit_code_ranges.retain(|r| !self.ranges.contains(&(r.0, r.1)));
+    }
 }
 
 impl Engine {
@@ -779,6 +863,8 @@ impl Engine {
             inner: Arc::new(EngineInner {
                 config: config.clone(),
                 compiler: config.build_compiler(),
+                debugger_data: Mutex::new(None),
+                jit_code: EngineJitCode::new(),
             }),
         }
     }
@@ -797,6 +883,29 @@ impl Engine {
         &self.config().cache_config
     }
 
+    pub(crate) fn weak(&self) -> SyncWeak<EngineInner> {
+        Arc::downgrade(&self.inner)
+    }
+
+    pub(crate) fn jit_code(&self) -> &EngineJitCode {
+        &self.inner.jit_code
+    }
+
+    pub(crate) fn register_module(
+        &self,
+        compiled_module: &Arc<CompiledModule>,
+        bytes: &[u8],
+    ) -> ModuleRegistration {
+        let mut lock = self.inner.config().debugger.lock().unwrap();
+        let reg = lock.register_module(DebuggerModule::new(compiled_module, self.weak(), bytes));
+        ModuleRegistration(reg)
+    }
+
+    pub(crate) fn add_breakpoints(&self, module_id: u32, addr: u64) {
+        let lock = self.inner.config().debugger.lock().unwrap();
+        lock.add_breakpoints(module_id, addr);
+    }
+
     /// Returns whether the engine `a` and `b` refer to the same configuration.
     pub fn same(a: &Engine, b: &Engine) -> bool {
         Arc::ptr_eq(&a.inner, &b.inner)
@@ -806,6 +915,48 @@ impl Engine {
 impl Default for Engine {
     fn default() -> Engine {
         Engine::new(&Config::default())
+    }
+}
+
+impl DebuggerContext for Engine {
+    fn patchable(&self) -> &dyn PatchableCode {
+        self
+    }
+    fn find_breakpoint(&self, addr: *const u8) -> Option<*const BreakpointData> {
+        let addr = addr as usize;
+        self.inner.find_breakpoint(addr)
+    }
+    fn pause(&self, kind: DebuggerPauseKind) -> DebuggerResumeAction {
+        self.config().debugger.lock().unwrap().pause(kind)
+    }
+    fn data<'c, 'a>(&'c self) -> DebuggerContextData<'c, 'a> {
+        self.inner.debugger_data.lock().unwrap()
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl PatchableCode for Engine {
+    fn patch_jit_code(&self, addr: usize, len: usize, f: &mut dyn FnMut()) {
+        let compiled = self
+            .inner
+            .jit_code()
+            .lookup_jit_code_range(addr)
+            .and_then(|(_, _, module)| module.upgrade())
+            .expect("jit_code_range module ref exist");
+        compiled.patch_jit_code(addr, len, f);
+    }
+}
+
+pub(crate) struct ModuleRegistration(Box<dyn DebuggerJitCodeRegistration>);
+
+impl ModuleRegistration {
+    pub(crate) fn id(&self) -> u32 {
+        self.0.id()
     }
 }
 

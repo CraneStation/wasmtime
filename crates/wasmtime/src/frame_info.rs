@@ -104,6 +104,7 @@ impl GlobalFrameInfo {
         };
         Some(FrameInfo {
             module_name: module.module.name.clone(),
+            module_id: module.module.id,
             func_index: func.index.index() as u32,
             func_name: module.module.func_names.get(&func.index).cloned(),
             instr,
@@ -206,6 +207,7 @@ pub fn register(module: &CompiledModule) -> Option<GlobalFrameInfoRegistration> 
 #[derive(Debug)]
 pub struct FrameInfo {
     module_name: Option<String>,
+    module_id: usize,
     func_index: u32,
     func_name: Option<String>,
     func_start: ir::SourceLoc,
@@ -232,6 +234,11 @@ impl FrameInfo {
     /// This function returns `None` when no name can be found or inferred.
     pub fn module_name(&self) -> Option<&str> {
         self.module_name.as_deref()
+    }
+
+    #[allow(missing_docs)]
+    pub fn module_id(&self) -> usize {
+        self.module_id
     }
 
     /// Returns a descriptive name of the function for this frame, if one is

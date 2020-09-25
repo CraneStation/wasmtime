@@ -234,6 +234,7 @@
 #![doc(test(attr(deny(warnings))))]
 #![doc(test(attr(allow(dead_code, unused_variables, unused_mut))))]
 
+pub mod debugger;
 mod externals;
 mod frame_info;
 mod func;

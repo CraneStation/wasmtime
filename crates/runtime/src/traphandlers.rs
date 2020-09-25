@@ -4,7 +4,7 @@
 use crate::VMContext;
 use backtrace::Backtrace;
 use std::any::Any;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::error::Error;
 use std::io;
 use std::ptr;
@@ -32,6 +32,7 @@ cfg_if::cfg_if! {
         static mut PREV_SIGBUS: MaybeUninit<libc::sigaction> = MaybeUninit::uninit();
         static mut PREV_SIGILL: MaybeUninit<libc::sigaction> = MaybeUninit::uninit();
         static mut PREV_SIGFPE: MaybeUninit<libc::sigaction> = MaybeUninit::uninit();
+        static mut PREV_SIGTRAP: MaybeUninit<libc::sigaction> = MaybeUninit::uninit();
 
         unsafe fn platform_init() {
             let register = |slot: &mut MaybeUninit<libc::sigaction>, signal: i32| {
@@ -66,6 +67,8 @@ cfg_if::cfg_if! {
             // Handle `unreachable` instructions which execute `ud2` right now
             register(&mut PREV_SIGILL, libc::SIGILL);
 
+            register(&mut PREV_SIGTRAP, libc::SIGTRAP);
+
             // x86 uses SIGFPE to report division by zero
             if cfg!(target_arch = "x86") || cfg!(target_arch = "x86_64") {
                 register(&mut PREV_SIGFPE, libc::SIGFPE);
@@ -88,6 +91,7 @@ cfg_if::cfg_if! {
                 libc::SIGBUS => &PREV_SIGBUS,
                 libc::SIGFPE => &PREV_SIGFPE,
                 libc::SIGILL => &PREV_SIGILL,
+                libc::SIGTRAP => &PREV_SIGTRAP,
                 _ => panic!("unknown signal: {}", signum),
             };
             let handled = tls::with(|info| {
@@ -97,6 +101,16 @@ cfg_if::cfg_if! {
                     Some(info) => info,
                     None => return false,
                 };
+
+                if signum == libc::SIGTRAP {
+                    // Try handle breakpoints/stepping.
+                    let dbg = info.debugger_context;
+                    return match dbg {
+                        Some(dbg) =>
+                            crate::debugger::debugger_handler(dbg, siginfo, context),
+                        None => false,
+                    };
+                }
 
                 // If we hit an exception while handling a previous trap, that's
                 // quite bad, so bail out and let the system handle this
@@ -361,31 +375,37 @@ impl Trap {
     }
 }
 
+type DebuggerContext = dyn crate::debugger::DebuggerContext + Send + Sync + 'static;
+
 /// Catches any wasm traps that happen within the execution of `closure`,
 /// returning them as a `Result`.
 ///
 /// Highly unsafe since `closure` won't have any dtors run.
-pub unsafe fn catch_traps<F>(
+pub unsafe fn catch_traps<'a, F>(
     vmctx: *mut VMContext,
     max_wasm_stack: usize,
-    is_wasm_code: impl Fn(usize) -> bool,
-    signal_handler: Option<&SignalHandler>,
+    is_wasm_code: impl Fn(usize) -> bool + 'a,
+    signal_handler: Option<&'a SignalHandler>,
+    debugger_context: Option<&'a DebuggerContext>,
     mut closure: F,
 ) -> Result<(), Trap>
 where
-    F: FnMut(),
+    F: FnMut() + 'a,
 {
     // Ensure that we have our sigaltstack installed.
     #[cfg(unix)]
     setup_unix_sigaltstack()?;
 
-    return CallThreadState::new(vmctx, &is_wasm_code, signal_handler).with(max_wasm_stack, |cx| {
-        RegisterSetjmp(
-            cx.jmp_buf.as_ptr(),
-            call_closure::<F>,
-            &mut closure as *mut F as *mut u8,
-        )
-    });
+    return CallThreadState::new(vmctx, &is_wasm_code, signal_handler, debugger_context).with(
+        max_wasm_stack,
+        |cx| {
+            RegisterSetjmp(
+                cx.jmp_buf.as_ptr(),
+                call_closure::<F>,
+                &mut closure as *mut F as *mut u8,
+            )
+        },
+    );
 
     extern "C" fn call_closure<F>(payload: *mut u8)
     where
@@ -397,13 +417,14 @@ where
 
 /// Temporary state stored on the stack which is registered in the `tls` module
 /// below for calls into wasm.
-pub struct CallThreadState<'a> {
+pub struct CallThreadState<'a, 'f> {
     unwind: Cell<UnwindReason>,
     jmp_buf: Cell<*const u8>,
     vmctx: *mut VMContext,
     handling_trap: Cell<bool>,
-    is_wasm_code: &'a (dyn Fn(usize) -> bool + 'a),
+    is_wasm_code: &'f (dyn Fn(usize) -> bool + 'a),
     signal_handler: Option<&'a SignalHandler<'a>>,
+    debugger_context: Option<&'a DebuggerContext>,
 }
 
 enum UnwindReason {
@@ -414,12 +435,13 @@ enum UnwindReason {
     JitTrap { backtrace: Backtrace, pc: usize },
 }
 
-impl<'a> CallThreadState<'a> {
+impl<'a, 'f> CallThreadState<'a, 'f> {
     fn new(
         vmctx: *mut VMContext,
-        is_wasm_code: &'a (dyn Fn(usize) -> bool + 'a),
+        is_wasm_code: &'f (dyn Fn(usize) -> bool + 'a),
         signal_handler: Option<&'a SignalHandler<'a>>,
-    ) -> CallThreadState<'a> {
+        debugger_context: Option<&'a DebuggerContext>,
+    ) -> CallThreadState<'a, 'f> {
         CallThreadState {
             unwind: Cell::new(UnwindReason::None),
             vmctx,
@@ -427,6 +449,7 @@ impl<'a> CallThreadState<'a> {
             handling_trap: Cell::new(false),
             is_wasm_code,
             signal_handler,
+            debugger_context,
         }
     }
 
@@ -641,12 +664,12 @@ mod tls {
     use std::mem;
     use std::ptr;
 
-    thread_local!(static PTR: Cell<*const CallThreadState<'static>> = Cell::new(ptr::null()));
+    thread_local!(static PTR: Cell<*const CallThreadState<'static, 'static>> = Cell::new(ptr::null()));
 
     /// Configures thread local state such that for the duration of the
     /// execution of `closure` any call to `with` will yield `ptr`, unless this
     /// is recursively called again.
-    pub fn set<R>(ptr: &CallThreadState<'_>, closure: impl FnOnce() -> R) -> R {
+    pub fn set<R>(ptr: &CallThreadState<'_, '_>, closure: impl FnOnce() -> R) -> R {
         struct Reset<'a, T: Copy>(&'a Cell<T>, T);
 
         impl<T: Copy> Drop for Reset<'_, T> {
@@ -660,7 +683,10 @@ mod tls {
             // safe because we only ever access it below with an anonymous
             // lifetime, meaning `'static` never leaks out of this module.
             let ptr = unsafe {
-                mem::transmute::<*const CallThreadState<'_>, *const CallThreadState<'static>>(ptr)
+                mem::transmute::<
+                    *const CallThreadState<'_, '_>,
+                    *const CallThreadState<'static, 'static>,
+                >(ptr)
             };
             let _r = Reset(p, p.replace(ptr));
             closure()
@@ -669,7 +695,7 @@ mod tls {
 
     /// Returns the last pointer configured with `set` above. Panics if `set`
     /// has not been previously called.
-    pub fn with<R>(closure: impl FnOnce(Option<&CallThreadState<'_>>) -> R) -> R {
+    pub fn with<R>(closure: impl FnOnce(Option<&CallThreadState<'_, '_>>) -> R) -> R {
         PTR.with(|ptr| {
             let p = ptr.get();
             unsafe { closure(if p.is_null() { None } else { Some(&*p) }) }
@@ -685,7 +711,6 @@ mod tls {
 /// page.
 #[cfg(unix)]
 fn setup_unix_sigaltstack() -> Result<(), Trap> {
-    use std::cell::RefCell;
     use std::convert::TryInto;
     use std::ptr::null_mut;
 
