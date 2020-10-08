@@ -1,0 +1,17 @@
+test compile
+target x86_64
+feature "experimental_x64"
+
+function %elide_uextend_add(i32, i32) -> i64 {
+block0(v0: i32, v1: i32):
+    ; check: pushq   %rbp
+    ; check: movq    %rsp, %rbp
+    v2 = iadd v0, v1
+    ; check: addl    %esi, %edi
+    v3 = uextend.i64 v2
+    ; check: movq    %rdi, %rax
+    ; check: movq    %rbp, %rsp
+    ; check: popq    %rbp
+    ; check: ret
+    return v3
+}

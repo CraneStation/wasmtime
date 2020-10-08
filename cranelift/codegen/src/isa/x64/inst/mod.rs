@@ -1168,7 +1168,11 @@ impl Inst {
     ) -> Inst {
         let rc = from_reg.get_class();
         match rc {
-            RegClass::I64 => Inst::mov_r_m(ty.bytes() as u8, from_reg, to_addr, srcloc),
+            RegClass::I64 => {
+                // Always store the full register, to ensure that the high bits are properly set
+                // when doing a full reload.
+                Inst::mov_r_m(8 /* bytes */, from_reg, to_addr, srcloc)
+            }
             RegClass::V128 => {
                 let opcode = match ty {
                     types::F32 => SseOpcode::Movss,

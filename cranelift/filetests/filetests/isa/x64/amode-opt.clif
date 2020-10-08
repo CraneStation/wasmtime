@@ -1,0 +1,41 @@
+test compile
+target x86_64
+feature "experimental_x64"
+
+function %amode_add(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+    v2 = iadd v0, v1
+    v3 = load.i64 v2
+    return v3
+    ; check: movq    0(%rdi,%rsi,1), %r12
+}
+
+function %amode_add_imm(i64) -> i64 {
+block0(v0: i64):
+    v1 = iconst.i64 42
+    v2 = iadd v0, v1
+    v3 = load.i64 v2
+    return v3
+    ; check: movq    42(%rdi), %r12
+}
+
+;; Same as above, but add operands have been reversed.
+function %amode_add_imm_order(i64) -> i64 {
+block0(v0: i64):
+    v1 = iconst.i64 42
+    v2 = iadd v1, v0
+    v3 = load.i64 v2
+    return v3
+    ; check: movq    42(%rdi), %r12
+}
+
+;; Make sure that uextend(cst) are ignored when the cst will naturally sign-extend.
+function %amode_add_uext_imm(i64) -> i64 {
+block0(v0: i64):
+    v1 = iconst.i32 42
+    v2 = uextend.i64 v1
+    v3 = iadd v2, v0
+    v4 = load.i64 v3
+    return v4
+    ; check: movq    42(%rdi), %r12
+}
