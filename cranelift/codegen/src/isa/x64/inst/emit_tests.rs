@@ -3157,6 +3157,18 @@ fn test_x64_emit() {
         "packsswb %xmm11, %xmm2",
     ));
 
+    insns.push((
+        Inst::xmm_rm_r(SseOpcode::Punpckhbw, RegMem::reg(xmm3), w_xmm2),
+        "660F68D3",
+        "punpckhbw %xmm3, %xmm2",
+    ));
+
+    insns.push((
+        Inst::xmm_rm_r(SseOpcode::Punpcklbw, RegMem::reg(xmm1), w_xmm8),
+        "66440F60C1",
+        "punpcklbw %xmm1, %xmm8",
+    ));
+
     // ========================================================
     // XMM_RM_R: Integer Conversion
     insns.push((

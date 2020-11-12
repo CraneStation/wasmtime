@@ -224,13 +224,6 @@ pub enum Inst {
         dst: SyntheticAmode,
     },
 
-    /// XMM (vector) unary op (to move a constant value into an xmm register): movups
-    XmmLoadConst {
-        src: VCodeConstant,
-        dst: Writable<Reg>,
-        ty: Type,
-    },
-
     /// XMM (scalar) unary op (from xmm to integer reg): movd, movq, cvtts{s,d}2si
     XmmToGpr {
         op: SseOpcode,
@@ -526,7 +519,6 @@ impl Inst {
             | Inst::VirtualSPOffsetAdj { .. }
             | Inst::XmmCmove { .. }
             | Inst::XmmCmpRmR { .. }
-            | Inst::XmmLoadConst { .. }
             | Inst::XmmMinMaxSeq { .. }
             | Inst::XmmUninitializedValue { .. } => None,
 
@@ -653,12 +645,6 @@ impl Inst {
         src.assert_regclass_is(RegClass::V128);
         debug_assert!(dst.to_reg().get_class() == RegClass::V128);
         Inst::XmmUnaryRmR { op, src, dst }
-    }
-
-    pub(crate) fn xmm_load_const(src: VCodeConstant, dst: Writable<Reg>, ty: Type) -> Inst {
-        debug_assert!(dst.to_reg().get_class() == RegClass::V128);
-        debug_assert!(ty.is_vector() && ty.bits() == 128);
-        Inst::XmmLoadConst { src, dst, ty }
     }
 
     /// Convenient helper for unary float operations.
@@ -1379,10 +1365,6 @@ impl PrettyPrint for Inst {
                 dst.show_rru(mb_rru),
             ),
 
-            Inst::XmmLoadConst { src, dst, .. } => {
-                format!("load_const {:?}, {}", src, dst.show_rru(mb_rru),)
-            }
-
             Inst::XmmToGpr {
                 op,
                 src,
@@ -1810,7 +1792,6 @@ fn x64_get_regs(inst: &Inst, collector: &mut RegUsageCollector) {
             }
         }
         Inst::XmmUninitializedValue { dst } => collector.add_def(*dst),
-        Inst::XmmLoadConst { dst, .. } => collector.add_def(*dst),
         Inst::XmmMinMaxSeq { lhs, rhs_dst, .. } => {
             collector.add_use(*lhs);
             collector.add_mod(*rhs_dst);
@@ -2145,9 +2126,6 @@ fn x64_map_regs<RUM: RegUsageMapper>(inst: &mut Inst, mapper: &RUM) {
             map_mod(mapper, dst);
         }
         Inst::XmmUninitializedValue { ref mut dst, .. } => {
-            map_def(mapper, dst);
-        }
-        Inst::XmmLoadConst { ref mut dst, .. } => {
             map_def(mapper, dst);
         }
         Inst::XmmMinMaxSeq {

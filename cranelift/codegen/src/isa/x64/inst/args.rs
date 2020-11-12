@@ -3,6 +3,7 @@
 use super::regs::{self, show_ireg_sized};
 use super::EmitState;
 use crate::ir::condcodes::{FloatCC, IntCC};
+use crate::isa::x64::inst::Inst;
 use crate::machinst::*;
 use regalloc::{
     PrettyPrint, PrettyPrintSized, RealRegUniverse, Reg, RegClass, RegUsageCollector,
@@ -104,6 +105,9 @@ pub enum SyntheticAmode {
     /// A (virtual) offset to the "nominal SP" value, which will be recomputed as we push and pop
     /// within the function.
     NominalSPOffset { simm32: u32 },
+
+    /// A virtual offset to a constant that will be emitted in the constant section of the buffer.
+    ConstantOffset(VCodeConstant),
 }
 
 impl SyntheticAmode {
@@ -118,6 +122,7 @@ impl SyntheticAmode {
             SyntheticAmode::NominalSPOffset { .. } => {
                 // Nothing to do; the base is SP and isn't involved in regalloc.
             }
+            SyntheticAmode::ConstantOffset(_) => {}
         }
     }
 
@@ -127,10 +132,11 @@ impl SyntheticAmode {
             SyntheticAmode::NominalSPOffset { .. } => {
                 // Nothing to do.
             }
+            SyntheticAmode::ConstantOffset(_) => {}
         }
     }
 
-    pub(crate) fn finalize(&self, state: &mut EmitState) -> Amode {
+    pub(crate) fn finalize(&self, state: &mut EmitState, buffer: &MachBuffer<Inst>) -> Amode {
         match self {
             SyntheticAmode::Real(addr) => addr.clone(),
             SyntheticAmode::NominalSPOffset { simm32 } => {
@@ -142,6 +148,9 @@ impl SyntheticAmode {
                 );
                 Amode::imm_reg(off as u32, regs::rsp())
             }
+            SyntheticAmode::ConstantOffset(c) => {
+                Amode::rip_relative(buffer.get_label_for_constant(*c))
+            }
         }
     }
 }
@@ -152,6 +161,12 @@ impl Into<SyntheticAmode> for Amode {
     }
 }
 
+impl Into<SyntheticAmode> for VCodeConstant {
+    fn into(self) -> SyntheticAmode {
+        SyntheticAmode::ConstantOffset(self)
+    }
+}
+
 impl PrettyPrint for SyntheticAmode {
     fn show_rru(&self, mb_rru: Option<&RealRegUniverse>) -> String {
         match self {
@@ -159,6 +174,7 @@ impl PrettyPrint for SyntheticAmode {
             SyntheticAmode::NominalSPOffset { simm32 } => {
                 format!("rsp({} + virtual offset)", *simm32 as i32)
             }
+            SyntheticAmode::ConstantOffset(c) => format!("const({})", c.as_u32()),
         }
     }
 }
@@ -472,6 +488,8 @@ pub enum SseOpcode {
     Psubusb,
     Psubusw,
     Ptest,
+    Punpckhbw,
+    Punpcklbw,
     Pxor,
     Rcpss,
     Roundss,
@@ -606,6 +624,8 @@ impl SseOpcode {
             | SseOpcode::Psubsw
             | SseOpcode::Psubusb
             | SseOpcode::Psubusw
+            | SseOpcode::Punpckhbw
+            | SseOpcode::Punpcklbw
             | SseOpcode::Pxor
             | SseOpcode::Sqrtpd
             | SseOpcode::Sqrtsd
@@ -773,6 +793,8 @@ impl fmt::Debug for SseOpcode {
             SseOpcode::Psubusb => "psubusb",
             SseOpcode::Psubusw => "psubusw",
             SseOpcode::Ptest => "ptest",
+            SseOpcode::Punpckhbw => "punpckhbw",
+            SseOpcode::Punpcklbw => "punpcklbw",
             SseOpcode::Pxor => "pxor",
             SseOpcode::Rcpss => "rcpss",
             SseOpcode::Roundss => "roundss",

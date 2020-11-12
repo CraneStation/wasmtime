@@ -12,11 +12,11 @@ block0:
     v2 = shuffle v0, v1, 0x11000000000000000000000000000000     ; pick the second lane of v1, the rest use the first lane of v0
     return v2
 }
-; check:  load_const VCodeConstant(3), %xmm1
-; nextln: load_const VCodeConstant(2), %xmm0
-; nextln: load_const VCodeConstant(0), %xmm2
+; check:  movdqu  const(3), %xmm1
+; nextln: movdqu  const(2), %xmm0
+; nextln: movdqu  const(0), %xmm2
 ; nextln: pshufb  %xmm2, %xmm1
-; nextln: load_const VCodeConstant(1), %xmm2
+; nextln: movdqu  const(1), %xmm2
 ; nextln: pshufb  %xmm2, %xmm0
 ; nextln: orps    %xmm1, %xmm0
 
@@ -27,8 +27,8 @@ block0:
     v2 = shuffle v1, v1, 0x13000000000000000000000000000000     ; pick the fourth lane of v1 and the rest from the first lane of v1
     return v2
 }
-; check:  load_const VCodeConstant(1), %xmm0
-; nextln: load_const VCodeConstant(0), %xmm1
+; check:  movdqu  const(1), %xmm0
+; nextln: movdqu  const(0), %xmm1
 ; nextln: pshufb  %xmm1, %xmm0
 
 
@@ -42,9 +42,9 @@ block0:
     v2 = swizzle.i8x16 v0, v1
     return v2
 }
-; check:  load_const VCodeConstant(1), %xmm1
-; nextln: load_const VCodeConstant(1), %xmm0
-; nextln: load_const VCodeConstant(0), %xmm2
+; check:  movdqu  const(1), %xmm1
+; nextln: movdqu  const(1), %xmm0
+; nextln: movdqu  const(0), %xmm2
 ; nextln: paddusb %xmm2, %xmm0
 ; nextln: pshufb  %xmm0, %xmm1
 ; nextln: movdqa  %xmm1, %xmm0

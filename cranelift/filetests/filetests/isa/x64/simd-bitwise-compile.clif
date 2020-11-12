@@ -15,3 +15,78 @@ block0:
 ; nextln: pandn   %xmm2, %xmm0
 ; nextln: por     %xmm1, %xmm0
 ; not:    movdqa
+
+
+
+; 8x16 shifts: these lower to complex sequences of instructions
+
+function %ishl_i8x16(i32) -> i8x16 {
+block0(v0: i32):
+    v1 = vconst.i8x16 [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
+    v2 = ishl v1, v0
+    return v2
+}
+; check:  movd    %edi, %xmm1
+; nextln: psllw   %xmm1, %xmm0
+; nextln: lea     const(0), %r12
+; nextln: shlq    $$4, %rdi
+; nextln: movdqu  0(%r12,%rdi,1), %xmm1
+; nextln: pand    %xmm1, %xmm0
+
+function %ushr_i8x16_imm() -> i8x16 {
+block0:
+    v0 = iconst.i32 1
+    v1 = vconst.i8x16 [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
+    v2 = ushr v1, v0
+    return v2
+}
+; check:  movdqu  const(1), %xmm0
+; nextln: psrlw   $$1, %xmm0
+; nextln: movdqu  const(0), %xmm1
+; nextln: pand    %xmm1, %xmm0
+
+function %sshr_i8x16(i32) -> i8x16 {
+block0(v0: i32):
+    v1 = vconst.i8x16 [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
+    v2 = sshr v1, v0
+    return v2
+}
+; check:  addl    $$8, %edi
+; nextln: movd    %edi, %xmm2
+; nextln: movdqa  %xmm0, %xmm1
+; nextln: punpcklbw %xmm1, %xmm1
+; nextln: psraw   %xmm2, %xmm1
+; nextln: punpckhbw %xmm0, %xmm0
+; nextln: psraw   %xmm2, %xmm0
+
+function %sshr_i8x16_imm(i8x16, i32) -> i8x16 {
+block0(v0: i8x16, v1: i32):
+    v2 = sshr_imm v0, 3
+    return v2
+}
+; check:  movdqa  %xmm0, %xmm1
+; nextln: movdqa  %xmm1, %xmm0
+; nextln: punpcklbw %xmm0, %xmm0
+; nextln: psraw   $$11, %xmm0
+; nextln: punpckhbw %xmm1, %xmm1
+; nextln: psraw   $$11, %xmm1
+; nextln: packsswb %xmm1, %xmm0
+
+
+
+; i16x4 arithmetic shifts: x86 does not have a instruction for this
+
+function %sshr_i64x2(i64x2, i32) -> i64x2 {
+block0(v0: i64x2, v1: i32):
+    v2 = sshr v0, v1
+    return v2
+}
+; check:  pextrd.w $$0, %xmm0, %r12
+; nextln: pextrd.w $$1, %xmm0, %r13
+; nextln: movq    %rdi, %rcx
+; nextln: sarq    %cl, %r12
+; nextln: movq    %rdi, %rcx
+; nextln: sarq    %cl, %r13
+; nextln: pinsrd.w $$0, %r12, %xmm1
+; nextln: pinsrd.w $$1, %r13, %xmm1
+; nextln: movdqa  %xmm1, %xmm0

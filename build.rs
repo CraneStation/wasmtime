@@ -182,6 +182,7 @@ fn experimental_x64_should_panic(testsuite: &str, testname: &str, strategy: &str
     match (testsuite, testname) {
         ("simd", "simd_address") => return false,
         ("simd", "simd_bitwise") => return false,
+        ("simd", "simd_bit_shift") => return false,
         ("simd", "simd_boolean") => return false,
         ("simd", "simd_const") => return false,
         ("simd", "simd_i8x16_arith") => return false,
@@ -205,7 +206,9 @@ fn experimental_x64_should_panic(testsuite: &str, testname: &str, strategy: &str
         ("simd", "simd_f64x2_cmp") => return false,
         ("simd", "simd_f64x2_pmin_pmax") => return false,
         ("simd", "simd_lane") => return false,
+        ("simd", "simd_load") => return false,
         ("simd", "simd_load_splat") => return false,
+        ("simd", "simd_splat") => return false,
         ("simd", "simd_store") => return false,
         ("simd", _) => return true,
         _ => {}

@@ -10,3 +10,111 @@ block0(v0: i8x16, v1: i8x16, v2: i8x16):
 }
 ; Remember that bitselect accepts: 1) the selector vector, 2) the "if true" vector, and 3) the "if false" vector.
 ; run: %bitselect_i8x16([0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255], [127 0 0 0 0 0 0 0 0 0 0 0 0 0 0 42], [42 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127]) == [42 0 0 0 0 0 0 0 0 0 0 0 0 0 0 42]
+
+
+
+; shift left
+
+function %ishl_i8x16(i8x16, i32) -> i8x16 {
+block0(v0: i8x16, v1: i32):
+    v2 = ishl v0, v1
+    return v2
+}
+; run: %ishl_i8x16([0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15], 4) == [0x00 0x10 0x20 0x30 0x40 0x50 0x60 0x70 0x80 0x90 0xa0 0xb0 0xc0 0xd0 0xe0 0xf0]
+
+function %ishl_i16x8(i16x8, i32) -> i16x8 {
+block0(v0: i16x8, v1: i32):
+    v2 = ishl v0, v1
+    return v2
+}
+; run: %ishl_i16x8([1 2 4 8 16 32 64 128], 17) == [0 0 0 0 0 0 0 0]
+
+function %ishl_i32x4(i32x4, i32) -> i32x4 {
+block0(v0: i32x4, v1: i32):
+    v2 = ishl v0, v1
+    return v2
+}
+; run: %ishl_i32x4([1 2 4 8], 1) == [2 4 8 16]
+
+function %ishl_imm_i64x2(i64x2) -> i64x2 {
+block0(v0: i64x2):
+    v2 = ishl_imm v0, 1
+    return v2
+}
+; run: %ishl_imm_i64x2([1 0]) == [2 0]
+
+
+
+; shift right (logical)
+
+function %ushr_i8x16(i8x16, i32) -> i8x16 {
+block0(v0: i8x16, v1: i32):
+    v2 = ushr v0, v1
+    return v2
+}
+; run: %ushr_i8x16([0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15], 1) == [0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7]
+
+function %ushr_i32x4(i32x4, i32) -> i32x4 {
+block0(v0: i32x4, v1: i32):
+    v2 = ushr v0, v1
+    return v2
+}
+; run: %ushr_i32x4([1 2 4 8], 33) == [0 0 0 0]
+
+function %ushr_i64x2(i64x2, i32) -> i64x2 {
+block0(v0: i64x2, v1: i32):
+    v2 = ushr v0, v1
+    return v2
+}
+; run: %ushr_i64x2([1 2], 1) == [0 1]
+
+
+
+; shift right (arithmetic)
+
+function %sshr_i8x16(i8x16, i32) -> i8x16 {
+block0(v0: i8x16, v1: i32):
+    v2 = sshr v0, v1
+    return v2
+}
+; run: %sshr_i8x16([0 0xff 2 0xfd 4 0xfb 6 0xf9 8 0xf7 10 0xf5 12 0xf3 14 0xf1], 1) == [0 0xff 1 0xfe 2 0xfd 3 0xfc 4 0xfb 5 0xfa 6 0xf9 7 0xf8]
+
+function %sshr_i16x8(i16x8, i32) -> i16x8 {
+block0(v0: i16x8, v1: i32):
+    v2 = sshr v0, v1
+    return v2
+}
+; note: because of the shifted-in sign-bit, lane 0 remains -1 == 0xffff, whereas lane 4 has been shifted to -8 == 0xfff8
+; run: %ushr_i16x8([-1 2 4 8 -16 32 64 128], 1) == [-1 1 2 4 -8 16 32 64]
+
+function %sshr_i32x4(i32x4, i32) -> i32x4 {
+block0(v0: i32x4, v1: i32):
+    v2 = sshr v0, v1
+    return v2
+}
+; note: shifting in the sign-bit repeatedly in lane 3 fills the result with 1s (-1 == 0xffff_ffff)
+; run: %ushr_i32x4([1 2 4 -8], 33) == [0 0 0 0xffff_ffff]
+
+function %sshr_i64x2(i64x2, i32) -> i64x2 {
+block0(v0:i64x2, v1:i32):
+    v2 = sshr v0, v1
+    return v2
+}
+; run: %sshr_i64x2([1 -1], 0) == [1 -1]
+; run: %sshr_i64x2([1 -1], 1) == [0 -1] ; note the -1 shift result
+; run: %sshr_i64x2([2 -2], 1) == [1 -1]
+; run: %sshr_i64x2([0x80000000_00000000 0x7FFFFFFF_FFFFFFFF], 63) == [0xFFFFFFFF_FFFFFFFF 0]
+
+function %sshr_imm_i32x4(i32x4) -> i32x4 {
+block0(v0: i32x4):
+    v1 = sshr_imm v0, 1
+    return v1
+}
+; run: %sshr_imm_i32x4([1 2 4 -8]) == [0 1 2 -4]
+
+function %sshr_imm_i16x8(i16x8) -> i16x8 {
+block0(v0: i16x8):
+    v1 = sshr_imm v0, 1
+    return v1
+}
+; run: %sshr_imm_i16x8([1 2 4 -8 0 0 0 0]) == [0 1 2 -4 0 0 0 0]
