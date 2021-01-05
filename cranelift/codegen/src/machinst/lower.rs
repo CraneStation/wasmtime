@@ -146,6 +146,10 @@ pub trait LowerCtx {
     fn emit(&mut self, mach_inst: Self::I);
     /// Emit a machine instruction that is a safepoint.
     fn emit_safepoint(&mut self, mach_inst: Self::I);
+    /// Emit a constant into a register; this may load the constant value from memory to the
+    /// register or generate it directly in the register.
+    fn emit_constant(&mut self, value: DataValue, to: Writable<Reg>);
+
     /// Indicate that the side-effect of an instruction has been sunk to the
     /// current scan location. This should only be done with the instruction's
     /// original results are not used (i.e., `put_input_in_reg` is not invoked
@@ -499,7 +503,7 @@ impl<'func, I: VCodeInst> Lower<'func, I> {
         //
         // * one for dsts whose sources are non-constants.
 
-        let mut const_bundles = SmallVec::<[(Type, Writable<Reg>, u64); 16]>::new();
+        let mut const_bundles = SmallVec::<[(Type, Writable<Reg>, DataValue); 16]>::new();
         let mut var_bundles = SmallVec::<[(Type, Writable<Reg>, Reg); 16]>::new();
 
         let mut i = 0;
@@ -522,7 +526,7 @@ impl<'func, I: VCodeInst> Lower<'func, I> {
 
             if let Some(c) = input.constant {
                 debug!(" -> constant {}", c);
-                const_bundles.push((ty, Writable::from_reg(dst_reg), c));
+                const_bundles.push((ty, Writable::from_reg(dst_reg), DataValue::U64(c)));
             } else {
                 let src_reg = self.put_value_in_reg(src_val);
                 debug!(" -> reg {:?}", src_reg);
@@ -573,14 +577,8 @@ impl<'func, I: VCodeInst> Lower<'func, I> {
         }
 
         // Now, finally, deal with the moves whose sources are constants.
-        for (ty, dst_reg, const_u64) in &const_bundles {
-            for inst in I::gen_constant(*dst_reg, *const_u64, *ty, |reg_class, ty| {
-                self.alloc_tmp(reg_class, ty)
-            })
-            .into_iter()
-            {
-                self.emit(inst);
-            }
+        for (_, dst_reg, const_value) in const_bundles {
+            self.emit_constant(const_value, dst_reg);
         }
 
         Ok(())
@@ -1083,6 +1081,19 @@ impl<'func, I: VCodeInst> LowerCtx for Lower<'func, I> {
             is_safepoint: true,
             inst: mach_inst,
         });
+    }
+
+    fn emit_constant(&mut self, value: DataValue, to: Writable<Reg>) {
+        let mach_insts = if I::should_generate_constant_in_pool(&value) {
+            let store_const = |const_value| self.use_constant(const_value);
+            I::gen_constant_in_pool(to, value, store_const)
+        } else {
+            let alloc_tmp = |reg_class, ty| self.alloc_tmp(reg_class, ty);
+            I::gen_constant(to, value, alloc_tmp)
+        };
+        for mach_inst in mach_insts {
+            self.emit(mach_inst)
+        }
     }
 
     fn sink_inst(&mut self, ir_inst: Inst) {

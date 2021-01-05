@@ -179,14 +179,9 @@ pub(crate) fn put_input_in_reg<C: LowerCtx<I = Inst>>(
         } else {
             c
         };
+        let masked = DataValue::U64(masked);
         let to_reg = ctx.alloc_tmp(Inst::rc_for_type(ty).unwrap(), ty);
-        for inst in Inst::gen_constant(to_reg, masked, ty, |reg_class, ty| {
-            ctx.alloc_tmp(reg_class, ty)
-        })
-        .into_iter()
-        {
-            ctx.emit(inst);
-        }
+        ctx.emit_constant(masked, to_reg);
         to_reg.to_reg()
     } else {
         ctx.put_input_in_reg(input.insn, input.input)

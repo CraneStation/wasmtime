@@ -1,7 +1,8 @@
 //! This module defines x86_64-specific machine instruction types.
 
 use crate::binemit::{CodeOffset, StackMap};
-use crate::ir::{types, ExternalName, Opcode, SourceLoc, TrapCode, Type};
+use crate::data_value::DataValue;
+use crate::ir::{types, ConstantData, ExternalName, Opcode, SourceLoc, TrapCode, Type};
 use crate::isa::x64::settings as x64_settings;
 use crate::machinst::*;
 use crate::{settings, settings::Flags, CodegenError, CodegenResult};
@@ -11,7 +12,7 @@ use regalloc::{
     PrettyPrint, PrettyPrintSized, RealRegUniverse, Reg, RegClass, RegUsageCollector,
     RegUsageMapper, SpillSlot, VirtualReg, Writable,
 };
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::fmt;
 use std::string::{String, ToString};
 
@@ -2501,78 +2502,116 @@ impl MachInst for Inst {
 
     fn gen_constant<F: FnMut(RegClass, Type) -> Writable<Reg>>(
         to_reg: Writable<Reg>,
-        value: u64,
-        ty: Type,
+        value: DataValue,
         mut alloc_tmp: F,
     ) -> SmallVec<[Self; 4]> {
         let mut ret = SmallVec::new();
-        if ty == types::F32 {
-            if value == 0 {
-                ret.push(Inst::xmm_rm_r(
+        match value {
+            DataValue::F32(value) => match value.bits() {
+                0 => ret.push(Inst::xmm_rm_r(
                     SseOpcode::Xorps,
-                    RegMem::reg(to_reg.to_reg()),
+                    RegMem::from(to_reg),
                     to_reg,
-                ));
-            } else {
-                let tmp = alloc_tmp(RegClass::I64, types::I32);
-                ret.push(Inst::imm(OperandSize::Size32, value, tmp));
-
-                ret.push(Inst::gpr_to_xmm(
-                    SseOpcode::Movd,
-                    RegMem::reg(tmp.to_reg()),
-                    OperandSize::Size32,
+                )),
+                0xffff_ffff => ret.push(Inst::xmm_rm_r_imm(
+                    SseOpcode::Cmpss,
+                    RegMem::from(to_reg),
                     to_reg,
-                ));
-            }
-        } else if ty == types::F64 {
-            if value == 0 {
-                ret.push(Inst::xmm_rm_r(
+                    FcmpImm::Equal.encode(),
+                    false,
+                )),
+                bits => {
+                    let tmp = alloc_tmp(RegClass::I64, types::I32);
+                    ret.push(Inst::imm(OperandSize::Size32, bits as u64, tmp));
+                    ret.push(Inst::gpr_to_xmm(
+                        SseOpcode::Movd,
+                        RegMem::from(tmp),
+                        OperandSize::Size32,
+                        to_reg,
+                    ));
+                }
+            },
+            DataValue::F64(value) => match value.bits() {
+                0 => ret.push(Inst::xmm_rm_r(
                     SseOpcode::Xorpd,
-                    RegMem::reg(to_reg.to_reg()),
+                    RegMem::from(to_reg),
                     to_reg,
-                ));
-            } else {
-                let tmp = alloc_tmp(RegClass::I64, types::I64);
-                ret.push(Inst::imm(OperandSize::Size64, value, tmp));
-
-                ret.push(Inst::gpr_to_xmm(
-                    SseOpcode::Movq,
-                    RegMem::reg(tmp.to_reg()),
-                    OperandSize::Size64,
+                )),
+                0xffff_ffff_ffff_ffff => ret.push(Inst::xmm_rm_r_imm(
+                    SseOpcode::Cmpsd,
+                    RegMem::from(to_reg),
                     to_reg,
-                ));
-            }
-        } else {
-            // Must be an integer type.
-            debug_assert!(
-                ty == types::B1
-                    || ty == types::I8
-                    || ty == types::B8
-                    || ty == types::I16
-                    || ty == types::B16
-                    || ty == types::I32
-                    || ty == types::B32
-                    || ty == types::I64
-                    || ty == types::B64
-                    || ty == types::R32
-                    || ty == types::R64
-            );
-            if value == 0 {
-                ret.push(Inst::alu_rmi_r(
-                    ty == types::I64,
-                    AluRmiROpcode::Xor,
-                    RegMemImm::reg(to_reg.to_reg()),
-                    to_reg,
-                ));
-            } else {
-                ret.push(Inst::imm(
-                    OperandSize::from_bytes(ty.bytes()),
-                    value.into(),
-                    to_reg,
-                ));
+                    FcmpImm::Equal.encode(),
+                    true,
+                )),
+                bits => {
+                    let tmp = alloc_tmp(RegClass::I64, types::I64);
+                    ret.push(Inst::imm(OperandSize::Size64, bits, tmp));
+                    ret.push(Inst::gpr_to_xmm(
+                        SseOpcode::Movq,
+                        RegMem::from(tmp),
+                        OperandSize::Size64,
+                        to_reg,
+                    ));
+                }
+            },
+            _ => {
+                // Must be an integer type.
+                let ty = value.ty();
+                debug_assert!(ty.bits() <= 64 && (ty.is_int() || ty.is_bool()));
+                let value = value
+                    .to_integer()
+                    .expect("a value that can be converted to a scalar integer");
+                if value == 0 {
+                    ret.push(Inst::alu_rmi_r(
+                        ty == types::I64,
+                        AluRmiROpcode::Xor,
+                        RegMemImm::reg(to_reg.to_reg()),
+                        to_reg,
+                    ));
+                } else {
+                    ret.push(Inst::imm(
+                        OperandSize::from_bytes(ty.bytes()),
+                        value as u64,
+                        to_reg,
+                    ));
+                }
             }
         }
+
         ret
+    }
+
+    fn gen_constant_in_pool<F: FnMut(VCodeConstantData) -> VCodeConstant>(
+        to_reg: Writable<Reg>,
+        value: DataValue,
+        mut store_const: F,
+    ) -> SmallVec<[Self; 4]> {
+        match value {
+            DataValue::V128(v) => {
+                let inst = match v {
+                    v if v == [0; 16] => {
+                        Inst::xmm_rm_r(SseOpcode::Xorpd, RegMem::from(to_reg), to_reg)
+                    }
+                    v if v == [0xff; 16] => {
+                        Inst::xmm_rm_r(SseOpcode::Pcmpeqw, RegMem::from(to_reg), to_reg)
+                    }
+                    _ => {
+                        let wrapped_value = ConstantData::from(v.to_vec());
+                        let handle = store_const(VCodeConstantData::Generated(wrapped_value));
+                        // TODO It would be good to inform xmm_load_const that the constant will be
+                        // stored at an aligned location so the aligned MOV variants can be used.
+                        // Also, here we pass the default V128 type, I8X16, instead of the more
+                        // specific type.
+                        Inst::xmm_load_const(handle, to_reg, value.ty())
+                    }
+                };
+                smallvec![inst]
+            }
+            // There is no technical reason why constants of various types cannot now be loaded from
+            // memory; this is left unimplemented until the feature is needed.
+            _ => unimplemented!("only vectors are implemented"),
+        }
     }
 
     fn reg_universe(flags: &Flags) -> RealRegUniverse {

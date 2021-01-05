@@ -96,12 +96,15 @@
 //!
 //! ```
 
-use crate::binemit::{CodeInfo, CodeOffset, StackMap};
 use crate::ir::condcodes::IntCC;
 use crate::ir::{Function, SourceLoc, Type};
 use crate::isa::unwind::input as unwind_input;
 use crate::result::CodegenResult;
 use crate::settings::Flags;
+use crate::{
+    binemit::{CodeInfo, CodeOffset, StackMap},
+    data_value::DataValue,
+};
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -164,13 +167,30 @@ pub trait MachInst: Clone + Debug {
     /// Generate a move.
     fn gen_move(to_reg: Writable<Reg>, from_reg: Reg, ty: Type) -> Self;
 
-    /// Generate a constant into a reg.
+    /// Determine whether a constant value should be generated in place. Higher-level users can use
+    /// this to determine whether `gen_constant` or `gen_constant_in_pool` should be used.
+    fn should_generate_constant_in_pool(_value: &DataValue) -> bool {
+        false
+    }
+
+    /// Generate a constant into a register. `alloc_tmp_reg` must be available because some
+    /// instruction sequences generating a constant value require an extra register (e.g. for moving
+    /// bits from general purpose to floating point registers)
     fn gen_constant<F: FnMut(RegClass, Type) -> Writable<Reg>>(
         to_reg: Writable<Reg>,
-        value: u64,
-        ty: Type,
-        alloc_tmp: F,
+        value: DataValue,
+        alloc_tmp_reg: F,
     ) -> SmallVec<[Self; 4]>;
+
+    /// Load a constant from memory into a register. `store_const` is required to inform the code
+    /// generator of the constant value to be placed in the constant pool.
+    fn gen_constant_in_pool<F: FnMut(VCodeConstantData) -> VCodeConstant>(
+        _to_reg: Writable<Reg>,
+        _value: DataValue,
+        _store_const: F,
+    ) -> SmallVec<[Self; 4]> {
+        unimplemented!()
+    }
 
     /// Generate a zero-length no-op.
     fn gen_zero_len_nop() -> Self;

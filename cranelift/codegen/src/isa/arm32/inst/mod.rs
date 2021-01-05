@@ -809,14 +809,14 @@ impl MachInst for Inst {
 
     fn gen_constant<F: FnMut(RegClass, Type) -> Writable<Reg>>(
         to_reg: Writable<Reg>,
-        value: u64,
-        ty: Type,
+        value: DataValue,
         _alloc_tmp: F,
     ) -> SmallVec<[Inst; 4]> {
-        match ty {
+        match value.ty() {
             B1 | I8 | B8 | I16 | B16 | I32 | B32 => {
-                let v: i64 = value as i64;
-
+                let v = value
+                    .to_integer()
+                    .expect("a value that can be converted to a scalar integer");
                 if v >= (1 << 32) || v < -(1 << 32) {
                     panic!("Cannot load constant value {}", value)
                 }

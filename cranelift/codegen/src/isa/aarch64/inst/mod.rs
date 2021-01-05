@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use crate::binemit::CodeOffset;
+use crate::data_value::DataValue;
 use crate::ir::types::{
     B1, B16, B16X4, B16X8, B32, B32X2, B32X4, B64, B64X2, B8, B8X16, B8X8, F32, F32X2, F32X4, F64,
     F64X2, FFLAGS, I16, I16X4, I16X8, I32, I32X2, I32X4, I64, I64X2, I8, I8X16, I8X8, IFLAGS, R32,
@@ -2864,30 +2865,23 @@ impl MachInst for Inst {
 
     fn gen_constant<F: FnMut(RegClass, Type) -> Writable<Reg>>(
         to_reg: Writable<Reg>,
-        value: u64,
-        ty: Type,
+        value: DataValue,
         alloc_tmp: F,
     ) -> SmallVec<[Inst; 4]> {
-        if ty == F64 {
-            Inst::load_fp_constant64(to_reg, value, alloc_tmp)
-        } else if ty == F32 {
-            Inst::load_fp_constant32(to_reg, value as u32, alloc_tmp)
+        if let DataValue::F64(v) = value {
+            Inst::load_fp_constant64(to_reg, v.bits(), alloc_tmp)
+        } else if let DataValue::F32(v) = value {
+            Inst::load_fp_constant32(to_reg, v.bits(), alloc_tmp)
         } else {
-            // Must be an integer type.
-            debug_assert!(
-                ty == B1
-                    || ty == I8
-                    || ty == B8
-                    || ty == I16
-                    || ty == B16
-                    || ty == I32
-                    || ty == B32
-                    || ty == I64
-                    || ty == B64
-                    || ty == R32
-                    || ty == R64
-            );
-            Inst::load_constant(to_reg, value)
+            // Must have a type that can be converted to a scalar integer.
+            debug_assert!(value.ty().bits() <= 64 && (value.ty().is_int() || value.ty().is_bool()));
+            Inst::load_constant(
+                to_reg,
+                value
+                    .to_integer()
+                    .expect("a value that can be converted to a scalar integer")
+                    as u64,
+            )
         }
     }
 

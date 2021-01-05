@@ -41,6 +41,23 @@ impl DataValue {
         }
     }
 
+    /// Try to cast a [DataValue] as an i64 integer; this performs necessary casting for integers
+    /// and booleans and returns an error for the remaining types.
+    pub fn to_integer(self) -> Result<i64, DataValueCastFailure> {
+        match self {
+            Self::I8(i) => Ok(i as i64),
+            Self::I16(i) => Ok(i as i64),
+            Self::I32(i) => Ok(i as i64),
+            Self::I64(i) => Ok(i),
+            Self::U8(i) => Ok(i as i64),
+            Self::U16(i) => Ok(i as i64),
+            Self::U32(i) => Ok(i as i64),
+            Self::U64(i) => Ok(i as i64),
+            Self::B(i) => Ok(i as i64),
+            _ => Err(DataValueCastFailure::TryInto(self.ty(), types::I64)),
+        }
+    }
+
     /// Return the Cranelift IR [Type] for this [DataValue].
     pub fn ty(&self) -> Type {
         match self {

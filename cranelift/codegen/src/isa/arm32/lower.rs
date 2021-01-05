@@ -71,11 +71,7 @@ pub(crate) fn input_to_reg<C: LowerCtx<I = Inst>>(
     let inputs = ctx.get_input_as_source_or_const(input.insn, input.input);
     let in_reg = if let Some(c) = inputs.constant {
         let to_reg = ctx.alloc_tmp(Inst::rc_for_type(ty).unwrap(), ty);
-        for inst in Inst::gen_constant(to_reg, c, ty, |reg_class, ty| ctx.alloc_tmp(reg_class, ty))
-            .into_iter()
-        {
-            ctx.emit(inst);
-        }
+        ctx.emit_constant(DataValue::U64(c), to_reg);
         to_reg.to_reg()
     } else {
         ctx.put_input_in_reg(input.insn, input.input)
