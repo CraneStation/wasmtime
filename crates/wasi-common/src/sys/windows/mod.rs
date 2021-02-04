@@ -40,6 +40,8 @@ pub(super) fn get_file_type(file: &File) -> io::Result<Filetype> {
             Filetype::Directory
         } else if meta.is_file() {
             Filetype::RegularFile
+        } else if meta.file_type().is_symlink() {
+            Filetype::SymbolicLink
         } else {
             return Err(io::Error::from_raw_os_error(libc::EINVAL));
         }
@@ -131,17 +133,32 @@ impl TryFrom<&File> for Filestat {
     type Error = Error;
 
     fn try_from(file: &File) -> Result<Self> {
-        let metadata = file.metadata()?;
-        Ok(Filestat {
-            dev: device_id(file)?,
-            ino: file_serial_no(file)?,
-            nlink: num_hardlinks(file)?.try_into()?, // u64 doesn't fit into u32
-            size: metadata.len(),
-            atim: systemtime_to_timestamp(metadata.accessed()?)?,
-            ctim: change_time(file)?.try_into()?, // i64 doesn't fit into u64
-            mtim: systemtime_to_timestamp(metadata.modified()?)?,
-            filetype: metadata.file_type().into(),
-        })
+        match get_file_type(file)? {
+            // Most (all?) file operations below are not supported for character devices and pipes on windows
+            t @ Filetype::CharacterDevice | t @ Filetype::SocketStream => Ok(Filestat {
+                dev: 0u64,
+                ino: 0u64,
+                nlink: 1u64,
+                size: 0,
+                atim: 0,
+                ctim: 0,
+                mtim: 0,
+                filetype: t,
+            }),
+            _ => {
+                let metadata = file.metadata()?;
+                Ok(Filestat {
+                    dev: device_id(file)?,
+                    ino: file_serial_no(file)?,
+                    nlink: num_hardlinks(file)?.try_into()?, // u64 doesn't fit into u32
+                    size: metadata.len(),
+                    atim: systemtime_to_timestamp(metadata.accessed()?)?,
+                    ctim: change_time(file)?.try_into()?, // i64 doesn't fit into u64
+                    mtim: systemtime_to_timestamp(metadata.modified()?)?,
+                    filetype: metadata.file_type().into(),
+                })
+            }
+        }
     }
 }
 
