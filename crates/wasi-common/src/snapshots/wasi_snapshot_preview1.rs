@@ -17,11 +17,11 @@ impl<'a> WasiSnapshotPreview1 for WasiCtx {
         argv: &GuestPtr<'b, GuestPtr<'b, u8>>,
         argv_buf: &GuestPtr<'b, u8>,
     ) -> Result<()> {
-        self.args.write_to_guest(argv_buf, argv)
+        self.args().write_to_guest(argv_buf, argv)
     }
 
     fn args_sizes_get(&self) -> Result<(types::Size, types::Size)> {
-        Ok((self.args.number_elements, self.args.cumulative_size))
+        Ok((self.args().number_elements, self.args().cumulative_size))
     }
 
     fn environ_get<'b>(
@@ -29,11 +29,11 @@ impl<'a> WasiSnapshotPreview1 for WasiCtx {
         environ: &GuestPtr<'b, GuestPtr<'b, u8>>,
         environ_buf: &GuestPtr<'b, u8>,
     ) -> Result<()> {
-        self.env.write_to_guest(environ_buf, environ)
+        self.env().write_to_guest(environ_buf, environ)
     }
 
     fn environ_sizes_get(&self) -> Result<(types::Size, types::Size)> {
-        Ok((self.env.number_elements, self.env.cumulative_size))
+        Ok((self.env().number_elements, self.env().cumulative_size))
     }
 
     fn clock_res_get(&self, id: types::Clockid) -> Result<types::Timestamp> {
