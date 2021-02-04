@@ -423,13 +423,11 @@ impl VirtualDir {
         }
     }
 
-    #[allow(dead_code)]
     pub fn with_dir<P: AsRef<Path>>(mut self, dir: Self, path: P) -> Self {
         self.add_dir(dir, path);
         self
     }
 
-    #[allow(dead_code)]
     pub fn add_dir<P: AsRef<Path>>(&mut self, dir: Self, path: P) {
         let entry = Box::new(dir);
         entry.set_parent(Some(self.try_clone().expect("can clone self")));
@@ -438,13 +436,11 @@ impl VirtualDir {
             .insert(path.as_ref().to_owned(), entry);
     }
 
-    #[allow(dead_code)]
     pub fn with_file<P: AsRef<Path>>(mut self, content: Box<dyn FileContents>, path: P) -> Self {
         self.add_file(content, path);
         self
     }
 
-    #[allow(dead_code)]
     pub fn add_file<P: AsRef<Path>>(&mut self, content: Box<dyn FileContents>, path: P) {
         let entry = Box::new(InMemoryFile::new(content));
         entry.set_parent(Some(self.try_clone().expect("can clone self")));

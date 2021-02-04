@@ -268,6 +268,19 @@ impl WasiCtxBuilder {
         self
     }
 
+    pub fn preopened_handle<P: AsRef<Path>>(
+        &mut self,
+        handle: Box<dyn Handle>,
+        guest_path: P,
+    ) -> &mut Self {
+        let preopen = PendingPreopen::new(move || Ok(handle));
+        self.preopens
+            .as_mut()
+            .unwrap()
+            .push((guest_path.as_ref().to_owned(), preopen));
+        self
+    }
+
     /// Build a `WasiCtx`, consuming this `WasiCtxBuilder`.
     ///
     /// If any of the arguments or environment variables in this builder cannot be converted into

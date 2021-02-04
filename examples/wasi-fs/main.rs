@@ -6,9 +6,8 @@
 // then you can execute this example with `cargo run --example wasi-fs`
 
 use anyhow::Result;
-use std::collections::HashMap;
 use wasmtime::*;
-use wasmtime_wasi::virtfs::{VecFileContents, VirtualDirEntry};
+use wasmtime_wasi::virtfs::{VecFileContents, VirtualDir};
 use wasmtime_wasi::{Wasi, WasiCtxBuilder};
 
 fn main() -> Result<()> {
@@ -23,16 +22,14 @@ fn main() -> Result<()> {
     // Create an instance of `Wasi` which contains a `WasiCtx`. Note that
     // `WasiCtx` provides a number of ways to configure what the target program
     // will have access to.
-    let entry = VirtualDirEntry::File(Box::new(VecFileContents::with_content(
-        "world".as_bytes().to_owned(),
-    )));
-    let mut map = HashMap::new();
-    map.insert("test.txt".to_string(), entry);
-    let dir = VirtualDirEntry::Directory(map);
+    let dir = VirtualDir::new(false).with_file(
+        Box::new(VecFileContents::with_content(b"world".to_vec())),
+        "test.txt",
+    );
     let ctx = WasiCtxBuilder::new()
         .inherit_stdout()
         .inherit_stderr()
-        .preopened_virt(dir, ".")
+        .preopened_handle(Box::new(dir), ".")
         .build()?;
     let wasi = Wasi::new(&store, ctx);
     wasi.add_to_linker(&mut linker)?;
