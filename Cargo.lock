@@ -2809,6 +2809,7 @@ dependencies = [
  "tempfile",
  "wasi-cap-std-sync",
  "wasi-common",
+ "wasi-virtfs",
  "wasmtime",
  "wasmtime-wasi",
  "wat",
@@ -3127,6 +3128,16 @@ dependencies = [
  "thiserror",
  "xoodyak",
  "zeroize",
+]
+
+[[package]]
+name = "wasi-virtfs"
+version = "0.22.0"
+dependencies = [
+ "anyhow",
+ "cap-std",
+ "tracing",
+ "wasi-common",
 ]
 
 [[package]]

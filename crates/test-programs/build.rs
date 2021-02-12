@@ -41,6 +41,7 @@ mod wasi_tests {
         build_tests("wasi-tests", &out_dir).expect("building tests");
         test_directory(&mut out, "wasi-cap-std-sync", "cap_std_sync", &out_dir)
             .expect("generating tests");
+        test_directory(&mut out, "wasi-virtfs", "virtfs", &out_dir).expect("generating tests");
     }
 
     fn build_tests(testsuite: &str, out_dir: &Path) -> io::Result<()> {
@@ -203,26 +204,14 @@ mod wasi_tests {
     /// Virtfs barely works at all and is not suitable for any purpose
     fn virtfs_ignore(name: &str) -> bool {
         [
-            "dangling_fd",
             "dangling_symlink",
-            "directory_seek",
-            "fd_advise",
-            "fd_filestat_set",
             "fd_flags_set",
-            "fd_readdir",
-            "file_allocate",
-            "file_pread_pwrite",
             "file_seek_tell",
             "file_truncation",
-            "file_unbuffered_write",
             "interesting_paths",
-            "isatty",
             "nofollow_errors",
             "path_filestat",
             "path_link",
-            "path_open_create_existing",
-            "path_open_dirfd_not_dir",
-            "path_open_read_without_rights",
             "path_rename",
             "path_rename_dir_trailing_slashes",
             "path_rename_file_trailing_slashes",
@@ -231,12 +220,9 @@ mod wasi_tests {
             "poll_oneoff_stdio",
             "readlink",
             "remove_directory_trailing_slashes",
-            "remove_nonempty_directory",
-            "renumber",
             "symlink_create",
             "symlink_filestat",
             "symlink_loop",
-            "truncation_rights",
             "unlink_file_trailing_slashes",
         ]
         .contains(&name)

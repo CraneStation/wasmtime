@@ -1,0 +1,19 @@
+[package]
+name = "wasi-virtfs"
+version = "0.22.0"
+authors = ["The Wasmtime Project Developers"]
+description = "WASI implementation in Rust"
+license = "Apache-2.0 WITH LLVM-exception"
+categories = ["wasm"]
+keywords = ["webassembly", "wasm"]
+repository = "https://github.com/bytecodealliance/wasmtime"
+readme = "README.md"
+edition = "2018"
+include = ["src/**/*", "LICENSE" ]
+publish = false
+
+[dependencies]
+wasi-common = { path = "../", version = "0.22.0" }
+anyhow = "1.0"
+cap-std = "0.13"
+tracing = "0.1.19"

@@ -73,6 +73,7 @@ impl From<ErrorKind> for types::Errno {
     fn from(e: ErrorKind) -> types::Errno {
         use types::Errno;
         match e {
+            ErrorKind::Acces => Errno::Acces,
             ErrorKind::Noent => Errno::Noent,
             ErrorKind::TooBig => Errno::TooBig,
             ErrorKind::Badf => Errno::Badf,
@@ -82,6 +83,8 @@ impl From<ErrorKind> for types::Errno {
             ErrorKind::Io => Errno::Io,
             ErrorKind::Nametoolong => Errno::Nametoolong,
             ErrorKind::Notdir => Errno::Notdir,
+            ErrorKind::Notempty => Errno::Notempty,
+            ErrorKind::Isdir => Errno::Isdir,
             ErrorKind::Notsup => Errno::Notsup,
             ErrorKind::Overflow => Errno::Overflow,
             ErrorKind::Range => Errno::Range,

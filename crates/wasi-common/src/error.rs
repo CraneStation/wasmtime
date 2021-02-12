@@ -30,6 +30,9 @@ pub use anyhow::Error;
 /// the crate. Not all values are represented presently.
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
+    /// Errno::Acces: Permission denied.
+    #[error("Acces: Permission denied")]
+    Acces,
     /// Errno::Noent: No such file or directory
     #[error("Noent: No such file or directory")]
     Noent,
@@ -57,6 +60,12 @@ pub enum ErrorKind {
     /// Errno::Notdir: Not a directory or a symbolic link to a directory.
     #[error("Notdir: Not a directory or a symbolic link to a directory")]
     Notdir,
+    /// Errno::Notempty: Directory not empty.
+    #[error("Notempty: Directory not empty")]
+    Notempty,
+    /// Errno::Isdir: Is a directory.
+    #[error("Isdir: Is a directory")]
+    Isdir,
     /// Errno::Notsup: Not supported, or operation not supported on socket.
     #[error("Notsup: Not supported, or operation not supported on socket")]
     Notsup,
@@ -76,6 +85,7 @@ pub enum ErrorKind {
 
 pub trait ErrorExt {
     fn trap(msg: impl Into<String>) -> Self;
+    fn permission_denied() -> Self;
     fn not_found() -> Self;
     fn too_big() -> Self;
     fn badf() -> Self;
@@ -85,6 +95,8 @@ pub trait ErrorExt {
     fn io() -> Self;
     fn name_too_long() -> Self;
     fn not_dir() -> Self;
+    fn not_empty() -> Self;
+    fn is_dir() -> Self;
     fn not_supported() -> Self;
     fn overflow() -> Self;
     fn range() -> Self;
@@ -95,6 +107,9 @@ pub trait ErrorExt {
 impl ErrorExt for Error {
     fn trap(msg: impl Into<String>) -> Self {
         anyhow::anyhow!(msg.into())
+    }
+    fn permission_denied() -> Self {
+        ErrorKind::Acces.into()
     }
     fn not_found() -> Self {
         ErrorKind::Noent.into()
@@ -122,6 +137,12 @@ impl ErrorExt for Error {
     }
     fn not_dir() -> Self {
         ErrorKind::Notdir.into()
+    }
+    fn not_empty() -> Self {
+        ErrorKind::Notempty.into()
+    }
+    fn is_dir() -> Self {
+        ErrorKind::Isdir.into()
     }
     fn not_supported() -> Self {
         ErrorKind::Notsup.into()

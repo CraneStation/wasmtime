@@ -13,6 +13,7 @@ cfg-if = "1.0"
 [dev-dependencies]
 wasi-common = { path = "../wasi-common", version = "0.22.0" }
 wasi-cap-std-sync = { path = "../wasi-common/cap-std-sync", version = "0.22.0" }
+wasi-virtfs = { path = "../wasi-common/virtfs", version = "0.22.0" }
 wasmtime = { path = "../wasmtime", version = "0.22.0" }
 wasmtime-wasi = { path = "../wasi", version = "0.22.0" }
 target-lexicon = "0.11.0"
