@@ -53,17 +53,17 @@ pub struct RecordHeader {
 pub struct CodeLoadRecord {
     /// Fixed sized header that describes this record
     pub header: RecordHeader,
-    /// uint32_t pid: OS process id of the runtime generating the jitted code
+    /// `uint32_t pid`: OS process id of the runtime generating the jitted code
     pub pid: u32,
-    /// uint32_t tid: OS thread identification of the runtime thread generating the jitted code
+    /// `uint32_t tid`: OS thread identification of the runtime thread generating the jitted code
     pub tid: u32,
-    /// uint64_t vma: virtual address of jitted code start
+    /// `uint64_t vma`: virtual address of jitted code start
     pub virtual_address: u64,
-    /// uint64_t code_addr: code start address for the jitted code. By default vma = code_addr
+    /// `uint64_t code_addr`: code start address for the jitted code. By default vma = code_addr
     pub address: u64,
-    /// uint64_t code_size: size in bytes of the generated jitted code
+    /// `uint64_t code_size`: size in bytes of the generated jitted code
     pub size: u64,
-    /// uint64_t code_index: unique identifier for the jitted code (see below)
+    /// `uint64_t code_index`: unique identifier for the jitted code (see below)
     pub index: u64,
 }
 
@@ -71,13 +71,13 @@ pub struct CodeLoadRecord {
 #[derive(Debug, Default)]
 #[repr(C)]
 pub struct DebugEntry {
-    /// uint64_t code_addr: address of function for which the debug information is generated
+    /// `uint64_t code_addr`: address of function for which the debug information is generated
     pub address: u64,
-    /// uint32_t line: source file line number (starting at 1)
+    /// `uint32_t line`: source file line number (starting at 1)
     pub line: u32,
-    /// uint32_t discrim: column discriminator, 0 is default
+    /// `uint32_t discrim`: column discriminator, 0 is default
     pub discriminator: u32,
-    /// char name[n]: source file name in ASCII, including null termination
+    /// `char name[n]`: source file name in ASCII, including null termination
     pub filename: String,
 }
 
@@ -89,9 +89,9 @@ pub struct DebugEntry {
 pub struct DebugInfoRecord {
     /// Fixed sized header that describes this record
     pub header: RecordHeader,
-    /// uint64_t code_addr: address of function for which the debug information is generated
+    /// `uint64_t code_addr`: address of function for which the debug information is generated
     pub address: u64,
-    /// uint64_t nr_entry: number of debug entries for the function appended to this record
+    /// `uint64_t nr_entry`: number of debug entries for the function appended to this record
     pub count: u64,
 }
 
@@ -99,23 +99,23 @@ pub struct DebugInfoRecord {
 #[derive(Debug, Default, IOwrite, SizeWith)]
 #[repr(C)]
 pub struct FileHeader {
-    /// uint32_t magic: a magic number tagging the file type. The value is 4-byte long and represents the
+    /// `uint32_t magic`: a magic number tagging the file type. The value is 4-byte long and represents the
     /// string "JiTD" in ASCII form. It is 0x4A695444 or 0x4454694a depending on the endianness. The field can
     /// be used to detect the endianness of the file
     pub magic: u32,
-    /// uint32_t version: a 4-byte value representing the format version. It is currently set to 2
+    /// `uint32_t version`: a 4-byte value representing the format version. It is currently set to 2
     pub version: u32,
-    /// uint32_t total_size: size in bytes of file header
+    /// `uint32_t total_size`: size in bytes of file header
     pub size: u32,
-    /// uint32_t elf_mach: ELF architecture encoding (ELF e_machine value as specified in /usr/include/elf.h)
+    /// `uint32_t elf_mach`: ELF architecture encoding (ELF e_machine value as specified in /usr/include/elf.h)
     pub e_machine: u32,
-    /// uint32_t pad1: padding. Reserved for future use
+    /// `uint32_t pad1`: padding. Reserved for future use
     pub pad1: u32,
-    /// uint32_t pid: JIT runtime process identification (OS specific)
+    /// `uint32_t pid`: JIT runtime process identification (OS specific)
     pub pid: u32,
-    /// uint64_t timestamp: timestamp of when the file was created
+    /// `uint64_t timestamp`: timestamp of when the file was created
     pub timestamp: u64,
-    /// uint64_t flags: a bitmask of flags
+    /// `uint64_t flags`: a bitmask of flags
     pub flags: u64,
 }
 
