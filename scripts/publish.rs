@@ -51,6 +51,7 @@ const CRATES_TO_PUBLISH: &[&str] = &[
     "wasi-cap-std-sync",
     // wasmtime
     "lightbeam",
+    "wasmtime-jit-debug",
     "wasmtime-fiber",
     "wasmtime-environ",
     "wasmtime-runtime",
