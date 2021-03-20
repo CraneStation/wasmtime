@@ -306,9 +306,9 @@ impl State {
         let tid = pid; // ThreadId does appear to track underlying thread. Using PID.
 
         for (idx, func) in functions.iter() {
-            let (addr, len) = unsafe { ((**func).as_ptr() as *const u8, (**func).len()) };
+            let code_buffer = unsafe { &*(*func as *mut [u8]) };
             if let Some(img) = &dbg_image {
-                if let Err(err) = self.dump_from_debug_image(img, "wasm", addr, len, pid, tid) {
+                if let Err(err) = self.dump_from_debug_image(img, "wasm", code_buffer, pid, tid) {
                     println!(
                         "Jitdump: module_load failed dumping from debug image: {:?}\n",
                         err
@@ -317,7 +317,7 @@ impl State {
             } else {
                 let timestamp = self.get_time_stamp();
                 let name = super::debug_name(module, idx);
-                self.dump_code_load_record(&name, addr, len, timestamp, pid, tid);
+                self.dump_code_load_record(&name, code_buffer, timestamp, pid, tid);
             }
         }
     }
@@ -325,8 +325,7 @@ impl State {
     fn dump_code_load_record(
         &mut self,
         method_name: &str,
-        addr: *const u8,
-        len: usize,
+        code_buffer: &[u8],
         timestamp: u64,
         pid: u32,
         tid: u32,
@@ -336,7 +335,7 @@ impl State {
 
         let rh = RecordHeader {
             id: RecordId::JitCodeLoad as u32,
-            record_size: size_limit as u32 + name_len as u32 + len as u32,
+            record_size: size_limit as u32 + name_len as u32 + code_buffer.len() as u32,
             timestamp: timestamp,
         };
 
@@ -344,18 +343,15 @@ impl State {
             header: rh,
             pid: pid,
             tid: tid,
-            virtual_address: addr as u64,
-            address: addr as u64,
-            size: len as u64,
+            virtual_address: code_buffer.as_ptr() as u64,
+            address: code_buffer.as_ptr() as u64,
+            size: code_buffer.len() as u64,
             index: self.code_index,
         };
         self.code_index += 1;
 
-        unsafe {
-            let code_buffer: &[u8] = std::slice::from_raw_parts(addr, len);
-            if let Err(err) = self.write_code_load_record(method_name, clr, code_buffer) {
-                println!("Jitdump: write_code_load_failed_record failed: {:?}\n", err);
-            }
+        if let Err(err) = self.write_code_load_record(method_name, clr, code_buffer) {
+            println!("Jitdump: write_code_load_failed_record failed: {:?}\n", err);
         }
     }
 
@@ -365,8 +361,7 @@ impl State {
         &mut self,
         dbg_image: &[u8],
         module_name: &str,
-        addr: *const u8,
-        len: usize,
+        code_buffer: &[u8],
         pid: u32,
         tid: u32,
     ) -> Result<()> {
@@ -403,14 +398,14 @@ impl State {
                     return Ok(());
                 }
             };
-            self.dump_entries(unit, &dwarf, module_name, addr, len, pid, tid)?;
+            self.dump_entries(unit, &dwarf, module_name, code_buffer, pid, tid)?;
             // TODO: Temp exit to avoid duplicate addresses being covered by only
             // processing the top unit
             break;
         }
         if !self.dump_funcs {
             let timestamp = self.get_time_stamp();
-            self.dump_code_load_record(module_name, addr, len, timestamp, pid, tid);
+            self.dump_code_load_record(module_name, code_buffer, timestamp, pid, tid);
         }
         Ok(())
     }
@@ -420,8 +415,7 @@ impl State {
         unit: gimli::Unit<R>,
         dwarf: &gimli::Dwarf<R>,
         module_name: &str,
-        addr: *const u8,
-        len: usize,
+        code_buffer: &[u8],
         pid: u32,
         tid: u32,
     ) -> Result<()> {
@@ -498,9 +492,9 @@ impl State {
                         continue;
                     }
                     if clr.address == 0 || clr.size == 0 {
-                        clr.address = addr as u64;
-                        clr.virtual_address = addr as u64;
-                        clr.size = len as u64;
+                        clr.address = code_buffer.as_ptr() as u64;
+                        clr.virtual_address = code_buffer.as_ptr() as u64;
+                        clr.size = code_buffer.len() as u64;
                     }
                     clr.header.record_size = mem::size_of::<CodeLoadRecord>() as u32
                         + (clr_name.len() + 1) as u32
