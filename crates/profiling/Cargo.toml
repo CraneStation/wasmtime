@@ -2,7 +2,7 @@
 name = "wasmtime-profiling"
 version = "0.25.0"
 authors = ["The Wasmtime Project Developers"]
-description = "Runtime library support for Wasmtime"
+description = "Runtime performance profiling support for Wasmtime"
 license = "Apache-2.0 WITH LLVM-exception"
 categories = ["wasm"]
 keywords = ["webassembly", "wasm"]
