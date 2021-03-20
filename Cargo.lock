@@ -3424,6 +3424,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmtime-jit-debug"
+version = "0.25.0"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "wasmtime-lightbeam"
 version = "0.25.0"
 dependencies = [
@@ -3472,7 +3479,6 @@ dependencies = [
  "cc",
  "cfg-if 1.0.0",
  "indexmap",
- "lazy_static",
  "libc",
  "log",
  "mach",
@@ -3484,6 +3490,7 @@ dependencies = [
  "thiserror",
  "userfaultfd",
  "wasmtime-environ",
+ "wasmtime-jit-debug",
  "winapi",
 ]
 
