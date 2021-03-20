@@ -3428,6 +3428,8 @@ name = "wasmtime-jit-debug"
 version = "0.25.0"
 dependencies = [
  "lazy_static",
+ "libc",
+ "scroll",
 ]
 
 [[package]]
@@ -3463,10 +3465,9 @@ dependencies = [
  "lazy_static",
  "libc",
  "object",
- "scroll",
- "serde",
  "target-lexicon",
  "wasmtime-environ",
+ "wasmtime-jit-debug",
  "wasmtime-runtime",
 ]
 
