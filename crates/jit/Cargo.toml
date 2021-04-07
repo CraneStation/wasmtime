@@ -37,6 +37,7 @@ gimli = { version = "0.23.0", default-features = false, features = ["write"] }
 object = { version = "0.23.0", default-features = false, features = ["write"] }
 serde = { version = "1.0.94", features = ["derive"] }
 addr2line = { version = "0.14", default-features = false }
+bincode = "1.2.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.8", features = ["winnt", "impl-default"] }

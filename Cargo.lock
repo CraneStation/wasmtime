@@ -3397,6 +3397,7 @@ version = "0.26.0"
 dependencies = [
  "addr2line",
  "anyhow",
+ "bincode",
  "cfg-if 1.0.0",
  "cranelift-codegen",
  "cranelift-entity",

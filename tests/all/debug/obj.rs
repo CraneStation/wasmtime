@@ -18,6 +18,7 @@ pub fn compile_cranelift(
         false,
         wasmtime::OptLevel::None,
         true,
+        "",
     )?;
 
     let mut file = File::create(output).context("failed to create object file")?;

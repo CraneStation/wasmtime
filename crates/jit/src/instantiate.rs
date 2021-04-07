@@ -6,7 +6,7 @@
 use crate::code_memory::CodeMemory;
 use crate::compiler::{Compilation, Compiler};
 use crate::link::link_module;
-use crate::object::ObjectUnwindInfo;
+use crate::object::{ObjectMetadataFormat, ObjectUnwindInfo};
 use object::File as ObjectFile;
 #[cfg(feature = "parallel-compilation")]
 use rayon::prelude::*;
@@ -117,7 +117,7 @@ impl CompilationArtifacts {
                     obj,
                     unwind_info,
                     funcs,
-                } = compiler.compile(&mut translation, &types)?;
+                } = compiler.compile(&mut translation, &types, ObjectMetadataFormat::JIT)?;
 
                 let ModuleTranslation {
                     mut module,

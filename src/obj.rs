@@ -4,7 +4,7 @@ use target_lexicon::Triple;
 use wasmparser::WasmFeatures;
 use wasmtime::Strategy;
 use wasmtime_environ::{settings, settings::Configurable, ModuleEnvironment, Tunables};
-use wasmtime_jit::{native, Compiler};
+use wasmtime_jit::{native, Compiler, ObjectMetadataFormat};
 
 /// Creates object file from binary wasm data.
 pub fn compile_to_obj(
@@ -14,6 +14,7 @@ pub fn compile_to_obj(
     enable_simd: bool,
     opt_level: wasmtime::OptLevel,
     debug_info: bool,
+    symbol_prefix: &str,
 ) -> Result<Object> {
     let isa_builder = match target {
         Some(target) => native::lookup(target.clone())?,
@@ -69,6 +70,13 @@ pub fn compile_to_obj(
         .translate(wasm)
         .context("failed to translate module")?;
     assert_eq!(translation.len(), 1);
-    let compilation = compiler.compile(&mut translation[0], &types)?;
+    let compilation = compiler.compile(
+        &mut translation[0],
+        &types,
+        ObjectMetadataFormat::AOT {
+            prefix: symbol_prefix,
+            use_debug_names: true,
+        },
+    )?;
     Ok(compilation.obj)
 }

@@ -46,6 +46,10 @@ pub struct WasmToObjCommand {
     /// The target triple; default is the host triple
     #[structopt(long, value_name = "TARGET", parse(try_from_str = parse_target))]
     target: Option<Triple>,
+
+    /// The symbol prefix.
+    #[structopt(long, value_name = "SYMBOL_PREFIX")]
+    symbol_prefix: Option<String>,
 }
 
 impl WasmToObjCommand {
@@ -64,6 +68,7 @@ impl WasmToObjCommand {
             self.common.enable_simd,
             self.common.opt_level(),
             self.common.debug_info,
+            self.symbol_prefix.as_ref().unwrap_or(&"".to_string()),
         )?;
 
         let mut file =

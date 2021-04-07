@@ -37,13 +37,13 @@ fn to_object_relocations<'a>(
     it: impl Iterator<Item = &'a Relocation> + 'a,
     off: u64,
     module: &'a Module,
-    funcs: &'a PrimaryMap<FuncIndex, SymbolId>,
+    funcs: &'a PrimaryMap<FuncIndex, Option<SymbolId>>,
     libcalls: &'a HashMap<LibCall, SymbolId>,
     compiled_funcs: &'a CompiledFunctions,
 ) -> impl Iterator<Item = ObjectRelocation> + 'a {
     it.filter_map(move |r| {
         let (symbol, symbol_offset) = match r.reloc_target {
-            RelocationTarget::UserFunc(index) => (funcs[index], 0),
+            RelocationTarget::UserFunc(index) => (funcs[index].unwrap(), 0),
             RelocationTarget::LibCall(call) => (libcalls[&call], 0),
             RelocationTarget::JumpTable(f, jt) => {
                 let df = module.defined_func_index(f).unwrap();
@@ -51,7 +51,7 @@ fn to_object_relocations<'a>(
                     .get(df)
                     .and_then(|f| f.jt_offsets.get(jt))
                     .expect("func jump table");
-                (funcs[f], offset)
+                (funcs[f].unwrap(), offset)
             }
         };
         let (kind, encoding, size) = match r.reloc {
@@ -252,6 +252,12 @@ impl ObjectBuilderTarget {
     }
 }
 
+fn prepend_prefix(prefix: &[u8], name: &[u8]) -> Vec<u8> {
+    let mut result = prefix.to_vec();
+    result.extend(name);
+    result
+}
+
 pub struct ObjectBuilder<'a> {
     target: ObjectBuilderTarget,
     module: &'a Module,
@@ -259,6 +265,9 @@ pub struct ObjectBuilder<'a> {
     compilation: &'a CompiledFunctions,
     trampolines: Vec<(SignatureIndex, CompiledFunction)>,
     dwarf_sections: Vec<DwarfSection>,
+    meta: Vec<u8>,
+    prefix: Vec<u8>,
+    use_debug_names: bool,
 }
 
 impl<'a> ObjectBuilder<'a> {
@@ -274,6 +283,9 @@ impl<'a> ObjectBuilder<'a> {
             trampolines: Vec::new(),
             dwarf_sections: vec![],
             compilation,
+            meta: vec![],
+            prefix: vec![],
+            use_debug_names: false,
         }
     }
 
@@ -290,8 +302,23 @@ impl<'a> ObjectBuilder<'a> {
         self
     }
 
+    pub fn set_meta(&mut self, meta: &[u8]) -> &mut Self {
+        self.meta = meta.to_vec();
+        self
+    }
+
     pub fn set_dwarf_sections(&mut self, dwarf_sections: Vec<DwarfSection>) -> &mut Self {
         self.dwarf_sections = dwarf_sections;
+        self
+    }
+
+    pub fn set_prefix(&mut self, prefix: &str) -> &mut Self {
+        self.prefix = prefix.as_bytes().to_vec();
+        self
+    }
+
+    pub fn set_use_debug_names(&mut self, use_debug_names: bool) -> &mut Self {
+        self.use_debug_names = use_debug_names;
         self
     }
 
@@ -312,22 +339,28 @@ impl<'a> ObjectBuilder<'a> {
             SectionKind::Text,
         );
 
-        // Create symbols for imports -- needed during linking.
+        // Create symbols for imports -- needed during linking, or skip for COFF.
+        let skip_imports = self.target.binary_format == BinaryFormat::Coff;
         let mut func_symbols = PrimaryMap::with_capacity(self.compilation.len());
         for index in 0..module.num_imported_funcs {
-            let symbol_id = obj.add_symbol(Symbol {
-                name: utils::func_symbol_name(FuncIndex::new(index))
-                    .as_bytes()
-                    .to_vec(),
-                value: 0,
-                size: 0,
-                kind: SymbolKind::Text,
-                scope: SymbolScope::Linkage,
-                weak: false,
-                section: SymbolSection::Undefined,
-                flags: SymbolFlags::None,
-            });
-            func_symbols.push(symbol_id);
+            if skip_imports {
+                func_symbols.push(None);
+            } else {
+                let symbol_id = obj.add_symbol(Symbol {
+                    name: prepend_prefix(
+                        &self.prefix,
+                        utils::func_symbol_name(FuncIndex::new(index)).as_bytes(),
+                    ),
+                    value: 0,
+                    size: 0,
+                    kind: SymbolKind::Text,
+                    scope: SymbolScope::Linkage,
+                    weak: false,
+                    section: SymbolSection::Undefined,
+                    flags: SymbolFlags::None,
+                });
+                func_symbols.push(Some(symbol_id));
+            }
         }
 
         let mut append_func = |name: Vec<u8>, func: &CompiledFunction| {
@@ -337,7 +370,7 @@ impl<'a> ObjectBuilder<'a> {
                 value: off,
                 size: func.body.len() as u64,
                 kind: SymbolKind::Text,
-                scope: SymbolScope::Compilation,
+                scope: SymbolScope::Linkage,
                 weak: false,
                 section: SymbolSection::Section(section_id),
                 flags: SymbolFlags::None,
@@ -351,19 +384,25 @@ impl<'a> ObjectBuilder<'a> {
 
         // Create symbols and section data for the compiled functions.
         for (index, func) in self.compilation.iter() {
-            let name = utils::func_symbol_name(module.func_index(index))
-                .as_bytes()
-                .to_vec();
+            let index = module.func_index(index);
+            let maybe_debug_name = if let Some(name) = self.get_debug_name(index) {
+                name
+            } else {
+                utils::func_symbol_name(index)
+            };
+            let name = prepend_prefix(&self.prefix, maybe_debug_name.as_bytes());
             let symbol_id = append_func(name, func);
-            func_symbols.push(symbol_id);
+            func_symbols.push(Some(symbol_id));
         }
         let mut trampolines = Vec::new();
         for (i, func) in self.trampolines.iter() {
-            let name = utils::trampoline_symbol_name(*i).as_bytes().to_vec();
+            let name = prepend_prefix(&self.prefix, utils::trampoline_symbol_name(*i).as_bytes());
             trampolines.push(append_func(name, func));
         }
 
         obj.append_section_data(section_id, &[], self.code_alignment);
+
+        self.write_metadata_and_func_references(&mut obj, &func_symbols, &trampolines)?;
 
         // If we have DWARF data, write it in the object file.
         let (debug_bodies, debug_relocs) = self
@@ -385,7 +424,7 @@ impl<'a> ObjectBuilder<'a> {
         for (index, func) in self.compilation.into_iter() {
             let func_index = module.func_index(index);
             let (_, off) = obj
-                .symbol_section_and_offset(func_symbols[func_index])
+                .symbol_section_and_offset(func_symbols[func_index].unwrap())
                 .unwrap();
             for r in to_object_relocations(
                 func.relocations.iter(),
@@ -419,7 +458,7 @@ impl<'a> ObjectBuilder<'a> {
             for reloc in relocs {
                 let target_symbol = match reloc.target {
                     DwarfSectionRelocTarget::Func(index) => {
-                        func_symbols[module.func_index(DefinedFuncIndex::new(index))]
+                        func_symbols[module.func_index(DefinedFuncIndex::new(index))].unwrap()
                     }
                     DwarfSectionRelocTarget::Section(name) => {
                         obj.section_symbol(*dwarf_sections_ids.get(name).unwrap())
@@ -440,5 +479,85 @@ impl<'a> ObjectBuilder<'a> {
         }
 
         Ok(obj)
+    }
+
+    fn get_debug_name(&self, index: FuncIndex) -> Option<String> {
+        if !self.use_debug_names || !self.module.func_names.contains_key(&index) {
+            return None;
+        }
+        let name = &self.module.func_names[&index];
+        if name.as_bytes().contains(&0) {
+            // Ignore the names with 0-byte in them.
+            return None;
+        }
+        Some(name.clone())
+    }
+
+    fn write_metadata_and_func_references(
+        &self,
+        obj: &mut Object,
+        func_symbols: &PrimaryMap<FuncIndex, Option<SymbolId>>,
+        trampolines: &[SymbolId],
+    ) -> Result<(), anyhow::Error> {
+        if self.meta.is_empty() {
+            return Ok(());
+        }
+
+        let segment = obj
+            .segment_name(object::write::StandardSegment::Data)
+            .to_vec();
+        let meta_section_id =
+            obj.add_section(segment, b".wasm".to_vec(), object::SectionKind::Data);
+        let name = prepend_prefix(&self.prefix, b"wasmtime_meta");
+        let off =
+            obj.append_section_data(meta_section_id, &(self.meta.len() as u64).to_le_bytes(), 1);
+        let off_ = obj.append_section_data(meta_section_id, &self.meta, 1);
+        let mut size = 8 + self.meta.len();
+        assert!(off + 8 == off_);
+
+        for (index, _) in self.compilation.into_iter() {
+            let off_ = obj.append_section_data(meta_section_id, &[0; 8], 1);
+            let func_index = self.module.func_index(index);
+            let target_symbol = func_symbols[func_index].unwrap();
+            obj.add_relocation(
+                meta_section_id,
+                ObjectRelocation {
+                    offset: u64::from(off_),
+                    size: 64,
+                    kind: RelocationKind::Absolute,
+                    encoding: RelocationEncoding::Generic,
+                    symbol: target_symbol,
+                    addend: 0,
+                },
+            )?;
+            size += 8;
+        }
+        for &target_symbol in trampolines.iter() {
+            let off_ = obj.append_section_data(meta_section_id, &[0; 8], 1);
+            obj.add_relocation(
+                meta_section_id,
+                ObjectRelocation {
+                    offset: u64::from(off_),
+                    size: 64,
+                    kind: RelocationKind::Absolute,
+                    encoding: RelocationEncoding::Generic,
+                    symbol: target_symbol,
+                    addend: 0,
+                },
+            )?;
+            size += 8;
+        }
+
+        obj.add_symbol(Symbol {
+            name,
+            value: off,
+            size: size as u64,
+            kind: SymbolKind::Text,
+            scope: SymbolScope::Linkage,
+            weak: false,
+            section: SymbolSection::Section(meta_section_id),
+            flags: SymbolFlags::None,
+        });
+        Ok(())
     }
 }
