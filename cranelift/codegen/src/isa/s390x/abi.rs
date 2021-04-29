@@ -459,16 +459,25 @@ impl ABIMachineSpec for S390xMachineDeps {
     // Returns stack bytes used as well as instructions. Does not adjust
     // nominal SP offset; abi_impl generic code will do that.
     fn gen_clobber_save(
-        call_conv: isa::CallConv,
+        _call_conv: isa::CallConv,
+        _setup_frame: bool,
         flags: &settings::Flags,
-        clobbers: &Set<Writable<RealReg>>,
+        clobbered_callee_saves: &Vec<Writable<RealReg>>,
         fixed_frame_storage_size: u32,
         outgoing_args_size: u32,
     ) -> (u64, SmallVec<[Inst; 16]>) {
         let mut insts = SmallVec::new();
+        let mut clobbered_fpr = vec![];
+        let mut clobbered_gpr = vec![];
 
-        // Collect clobbered registers.
-        let (clobbered_gpr, clobbered_fpr) = get_regs_saved_in_prologue(call_conv, clobbers);
+        for &reg in clobbered_callee_saves.iter() {
+            match reg.to_reg().get_class() {
+                RegClass::I64 => clobbered_gpr.push(reg),
+                RegClass::F64 => clobbered_fpr.push(reg),
+                class => panic!("Unexpected RegClass: {:?}", class),
+            }
+        }
+
         let mut first_clobbered_gpr = 16;
         for reg in clobbered_gpr {
             let enc = reg.to_reg().get_hw_encoding();
@@ -717,6 +726,31 @@ impl ABIMachineSpec for S390xMachineDeps {
         specified: ir::ArgumentExtension,
     ) -> ir::ArgumentExtension {
         specified
+    }
+
+    fn get_clobbered_callee_saves(
+        call_conv: isa::CallConv,
+        regs: &Set<Writable<RealReg>>,
+    ) -> Vec<Writable<RealReg>> {
+        let mut regs: Vec<Writable<RealReg>> = regs
+            .iter()
+            .cloned()
+            .filter(|r| is_reg_saved_in_prologue(call_conv, r.to_reg()))
+            .collect();
+
+        // Sort registers for deterministic code output. We can do an unstable
+        // sort because the registers will be unique (there are no dups).
+        regs.sort_unstable_by_key(|r| r.to_reg().get_index());
+        regs
+    }
+
+    fn is_frame_setup_needed(
+        _is_leaf: bool,
+        _stack_args_size: u32,
+        _num_clobbered_callee_saves: usize,
+        _fixed_frame_storage_size: u32,
+    ) -> bool {
+        true
     }
 }
 

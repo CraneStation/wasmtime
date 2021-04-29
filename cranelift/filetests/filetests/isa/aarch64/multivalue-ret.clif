@@ -10,9 +10,6 @@ block1:
   return v0, v1
 }
 
-; check:  stp fp, lr, [sp, #-16]!
-; nextln:  mov fp, sp
-; nextln:  movz x0, #1
+; check:  movz x0, #1
 ; nextln:  movz x1, #2
-; nextln:  ldp fp, lr, [sp], #16
 ; nextln:  ret

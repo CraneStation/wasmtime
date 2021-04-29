@@ -12,10 +12,7 @@ block0(v0: i64):
     return
 }
 
-; check:      stp fp, lr, [sp, #-16]!
-; nextln:     mov fp, sp
-; nextln:     ldp fp, lr, [sp], #16
-; nextln:     ret
+; check:      ret
 
 function %stack_limit_gv_leaf_zero(i64 vmctx) {
     gv0 = vmctx
@@ -26,10 +23,7 @@ block0(v0: i64):
     return
 }
 
-; check:      stp fp, lr, [sp, #-16]!
-; nextln:     mov fp, sp
-; nextln:     ldp fp, lr, [sp], #16
-; nextln:     ret
+; check:      ret
 
 
 function %stack_limit_call_zero(i64 stack_limit) {

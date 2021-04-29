@@ -8,10 +8,7 @@ block0(v0: i8):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: uxtb w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: uxtb w0, w0
 ; nextln: ret
 
 function %f_u_8_32(i8) -> i32 {
@@ -20,10 +17,7 @@ block0(v0: i8):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: uxtb w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: uxtb w0, w0
 ; nextln: ret
 
 function %f_u_8_16(i8) -> i16 {
@@ -32,10 +26,7 @@ block0(v0: i8):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: uxtb w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: uxtb w0, w0
 ; nextln: ret
 
 function %f_s_8_64(i8) -> i64 {
@@ -44,10 +35,7 @@ block0(v0: i8):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: sxtb x0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: sxtb x0, w0
 ; nextln: ret
 
 function %f_s_8_32(i8) -> i32 {
@@ -56,10 +44,7 @@ block0(v0: i8):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: sxtb w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: sxtb w0, w0
 ; nextln: ret
 
 function %f_s_8_16(i8) -> i16 {
@@ -68,10 +53,7 @@ block0(v0: i8):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: sxtb w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: sxtb w0, w0
 ; nextln: ret
 
 function %f_u_16_64(i16) -> i64 {
@@ -80,10 +62,7 @@ block0(v0: i16):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: uxth w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: uxth w0, w0
 ; nextln: ret
 
 function %f_u_16_32(i16) -> i32 {
@@ -92,10 +71,7 @@ block0(v0: i16):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: uxth w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: uxth w0, w0
 ; nextln: ret
 
 function %f_s_16_64(i16) -> i64 {
@@ -104,10 +80,7 @@ block0(v0: i16):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: sxth x0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: sxth x0, w0
 ; nextln: ret
 
 function %f_s_16_32(i16) -> i32 {
@@ -116,10 +89,7 @@ block0(v0: i16):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: sxth w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: sxth w0, w0
 ; nextln: ret
 
 function %f_u_32_64(i32) -> i64 {
@@ -128,10 +98,7 @@ block0(v0: i32):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: mov w0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: mov w0, w0
 ; nextln: ret
 
 function %f_s_32_64(i32) -> i64 {
@@ -140,8 +107,5 @@ block0(v0: i32):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: sxtw x0, w0
-; nextln: ldp fp, lr, [sp], #16
+; check: sxtw x0, w0
 ; nextln: ret

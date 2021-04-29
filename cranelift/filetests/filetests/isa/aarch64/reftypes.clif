@@ -7,10 +7,7 @@ block0(v0: r64):
   return v0
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: ldp fp, lr, [sp], #16
-; nextln: ret
+; check: ret
 
 function %f1(r64) -> b1 {
 block0(v0: r64):
@@ -18,11 +15,8 @@ block0(v0: r64):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: subs xzr, x0, #0
+; check: subs xzr, x0, #0
 ; nextln: cset x0, eq
-; nextln: ldp fp, lr, [sp], #16
 ; nextln: ret
 
 function %f2(r64) -> b1 {
@@ -31,11 +25,8 @@ block0(v0: r64):
   return v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: adds xzr, x0, #1
+; check: adds xzr, x0, #1
 ; nextln: cset x0, eq
-; nextln: ldp fp, lr, [sp], #16
 ; nextln: ret
 
 function %f3() -> r64 {
@@ -44,10 +35,7 @@ block0:
   return v0
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: movz x0, #0
-; nextln: ldp fp, lr, [sp], #16
+; check: movz x0, #0
 ; nextln: ret
 
 function %f4(r64, r64) -> r64, r64, r64 {

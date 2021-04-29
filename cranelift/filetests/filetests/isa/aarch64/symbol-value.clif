@@ -10,8 +10,5 @@ block0:
   return v0
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: ldr x0, 8 ; b 12 ; data
-; nextln: ldp fp, lr, [sp], #16
+; check: ldr x0, 8 ; b 12 ; data
 ; nextln: ret

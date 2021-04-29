@@ -693,20 +693,30 @@ impl ABIMachineSpec for AArch64MachineDeps {
     // nominal SP offset; abi_impl generic code will do that.
     fn gen_clobber_save(
         call_conv: isa::CallConv,
+        setup_frame: bool,
         flags: &settings::Flags,
-        clobbers: &Set<Writable<RealReg>>,
+        clobbered_callee_saves: &Vec<Writable<RealReg>>,
         fixed_frame_storage_size: u32,
         _outgoing_args_size: u32,
     ) -> (u64, SmallVec<[Inst; 16]>) {
-        let mut insts = SmallVec::new();
-        let (clobbered_int, clobbered_vec) = get_regs_saved_in_prologue(call_conv, clobbers);
+        let mut clobbered_int = vec![];
+        let mut clobbered_vec = vec![];
+
+        for &reg in clobbered_callee_saves.iter() {
+            match reg.to_reg().get_class() {
+                RegClass::I64 => clobbered_int.push(reg),
+                RegClass::V128 => clobbered_vec.push(reg),
+                class => panic!("Unexpected RegClass: {:?}", class),
+            }
+        }
 
         let (int_save_bytes, vec_save_bytes) =
             saved_reg_stack_size(call_conv, &clobbered_int, &clobbered_vec);
         let total_save_bytes = int_save_bytes + vec_save_bytes;
         let clobber_size = total_save_bytes as i32;
+        let mut insts = SmallVec::new();
 
-        if flags.unwind_info() {
+        if flags.unwind_info() && setup_frame {
             // The *unwind* frame (but not the actual frame) starts at the
             // clobbers, just below the saved FP/LR pair.
             insts.push(Inst::Unwind {
@@ -916,7 +926,7 @@ impl ABIMachineSpec for AArch64MachineDeps {
         _outgoing_args_size: u32,
     ) -> SmallVec<[Inst; 16]> {
         let mut insts = SmallVec::new();
-        let (clobbered_int, clobbered_vec) = get_regs_saved_in_prologue(call_conv, clobbers);
+        let (clobbered_int, clobbered_vec) = get_regs_restored_in_epilogue(call_conv, clobbers);
 
         // Free the fixed frame if necessary.
         if fixed_frame_storage_size > 0 {
@@ -1180,6 +1190,36 @@ impl ABIMachineSpec for AArch64MachineDeps {
             ir::ArgumentExtension::None
         }
     }
+
+    fn get_clobbered_callee_saves(
+        call_conv: isa::CallConv,
+        regs: &Set<Writable<RealReg>>,
+    ) -> Vec<Writable<RealReg>> {
+        let mut regs: Vec<Writable<RealReg>> = regs
+            .iter()
+            .cloned()
+            .filter(|r| is_reg_saved_in_prologue(call_conv, r.to_reg()))
+            .collect();
+
+        // Sort registers for deterministic code output. We can do an unstable
+        // sort because the registers will be unique (there are no dups).
+        regs.sort_unstable_by_key(|r| r.to_reg().get_index());
+        regs
+    }
+
+    fn is_frame_setup_needed(
+        is_leaf: bool,
+        stack_args_size: u32,
+        num_clobbered_callee_saves: usize,
+        fixed_frame_storage_size: u32,
+    ) -> bool {
+        !is_leaf
+            // The function arguments that are passed on the stack are addressed
+            // relative to the Frame Pointer.
+            || stack_args_size > 0
+            || num_clobbered_callee_saves > 0
+            || fixed_frame_storage_size > 0
+    }
 }
 
 /// Is this type supposed to be seen on this machine? E.g. references of the
@@ -1224,7 +1264,7 @@ fn is_reg_saved_in_prologue(call_conv: isa::CallConv, r: RealReg) -> bool {
 /// Return the set of all integer and vector registers that must be saved in the
 /// prologue and restored in the epilogue, given the set of all registers
 /// written by the function's body.
-fn get_regs_saved_in_prologue(
+fn get_regs_restored_in_epilogue(
     call_conv: isa::CallConv,
     regs: &Set<Writable<RealReg>>,
 ) -> (Vec<Writable<RealReg>>, Vec<Writable<RealReg>>) {

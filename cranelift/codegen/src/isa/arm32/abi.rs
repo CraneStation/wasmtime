@@ -316,8 +316,9 @@ impl ABIMachineSpec for Arm32MachineDeps {
     /// nominal SP offset; caller will do that.
     fn gen_clobber_save(
         _call_conv: isa::CallConv,
+        _setup_frame: bool,
         _flags: &settings::Flags,
-        clobbers: &Set<Writable<RealReg>>,
+        clobbered_callee_saves: &Vec<Writable<RealReg>>,
         fixed_frame_storage_size: u32,
         _outgoing_args_size: u32,
     ) -> (u64, SmallVec<[Inst; 16]>) {
@@ -325,8 +326,7 @@ impl ABIMachineSpec for Arm32MachineDeps {
         if fixed_frame_storage_size > 0 {
             insts.extend(Self::gen_sp_reg_adjust(-(fixed_frame_storage_size as i32)).into_iter());
         }
-        let clobbered_vec = get_callee_saves(clobbers);
-        let mut clobbered_vec: Vec<_> = clobbered_vec
+        let mut clobbered_vec: Vec<_> = clobbered_callee_saves
             .into_iter()
             .map(|r| r.to_reg().to_reg())
             .collect();
@@ -345,14 +345,14 @@ impl ABIMachineSpec for Arm32MachineDeps {
     }
 
     fn gen_clobber_restore(
-        _call_conv: isa::CallConv,
+        call_conv: isa::CallConv,
         _flags: &settings::Flags,
         clobbers: &Set<Writable<RealReg>>,
         _fixed_frame_storage_size: u32,
         _outgoing_args_size: u32,
     ) -> SmallVec<[Inst; 16]> {
         let mut insts = SmallVec::new();
-        let clobbered_vec = get_callee_saves(clobbers);
+        let clobbered_vec = Self::get_clobbered_callee_saves(call_conv, clobbers);
         let mut clobbered_vec: Vec<_> = clobbered_vec
             .into_iter()
             .map(|r| Writable::from_reg(r.to_reg().to_reg()))
@@ -468,24 +468,36 @@ impl ABIMachineSpec for Arm32MachineDeps {
     ) -> ir::ArgumentExtension {
         specified
     }
+
+    fn get_clobbered_callee_saves(
+        _call_conv: isa::CallConv,
+        regs: &Set<Writable<RealReg>>,
+    ) -> Vec<Writable<RealReg>> {
+        let mut ret = Vec::new();
+        for &reg in regs.iter() {
+            if is_callee_save(reg.to_reg()) {
+                ret.push(reg);
+            }
+        }
+
+        // Sort registers for deterministic code output.
+        ret.sort_by_key(|r| r.to_reg().get_index());
+        ret
+    }
+
+    fn is_frame_setup_needed(
+        _is_leaf: bool,
+        _stack_args_size: u32,
+        _num_clobbered_callee_saves: usize,
+        _fixed_frame_storage_size: u32,
+    ) -> bool {
+        true
+    }
 }
 
 fn is_callee_save(r: RealReg) -> bool {
     let enc = r.get_hw_encoding();
     4 <= enc && enc <= 10
-}
-
-fn get_callee_saves(regs: &Set<Writable<RealReg>>) -> Vec<Writable<RealReg>> {
-    let mut ret = Vec::new();
-    for &reg in regs.iter() {
-        if is_callee_save(reg.to_reg()) {
-            ret.push(reg);
-        }
-    }
-
-    // Sort registers for deterministic code output.
-    ret.sort_by_key(|r| r.to_reg().get_index());
-    ret
 }
 
 fn is_reg_clobbered_by_call(r: RealReg) -> bool {
