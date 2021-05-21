@@ -861,7 +861,7 @@ impl Instance {
     }
 
     /// Get an imported, foreign table.
-    pub(crate) fn get_foreign_table(&self, index: TableIndex) -> &Table {
+    fn get_foreign_table(&self, index: TableIndex) -> &Table {
         let import = self.imported_table(index);
         let foreign_instance = unsafe { (&mut *(import).vmctx).instance() };
         let foreign_table = unsafe { &mut *(import).from };
