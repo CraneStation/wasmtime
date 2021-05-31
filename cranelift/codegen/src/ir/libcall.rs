@@ -60,6 +60,8 @@ pub enum LibCall {
     Memset,
     /// libc.memmove
     Memmove,
+    /// libc.memcmp
+    Memcmp,
 
     /// Elf __tls_get_addr
     ElfTlsGetAddr,
@@ -96,6 +98,7 @@ impl FromStr for LibCall {
             "Memcpy" => Ok(Self::Memcpy),
             "Memset" => Ok(Self::Memset),
             "Memmove" => Ok(Self::Memmove),
+            "Memcmp" => Ok(Self::Memcmp),
 
             "ElfTlsGetAddr" => Ok(Self::ElfTlsGetAddr),
             _ => Err(()),
@@ -161,6 +164,7 @@ impl LibCall {
             Memcpy,
             Memset,
             Memmove,
+            Memcmp,
             ElfTlsGetAddr,
         ]
     }
@@ -284,5 +288,12 @@ mod tests {
     #[test]
     fn parsing() {
         assert_eq!("FloorF32".parse(), Ok(LibCall::FloorF32));
+    }
+
+    #[test]
+    fn all_libcalls_to_from_string() {
+        for &libcall in LibCall::all_libcalls() {
+            assert_eq!(libcall.to_string().parse(), Ok(libcall));
+        }
     }
 }

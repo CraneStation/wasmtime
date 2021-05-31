@@ -814,6 +814,42 @@ impl<'a> FunctionBuilder<'a> {
 
         self.ins().call(libc_memmove, &[dest, source, size]);
     }
+
+    /// Calls libc.memcmp
+    ///
+    /// Compares `size` bytes from memory starting at `left` to memory starting
+    /// at `right`. Returns `0` if all `n` bytes are equal.  If the first difference
+    /// is at offset `i`, returns a positive integer if `ugt(left[i], right[i])`
+    /// and a negative integer if `ult(left[i], right[i])`.
+    ///
+    /// Returns a C `int`, which is currently always [`types::I32`].
+    pub fn call_memcmp(
+        &mut self,
+        config: TargetFrontendConfig,
+        left: Value,
+        right: Value,
+        size: Value,
+    ) -> Value {
+        let pointer_type = config.pointer_type();
+        let signature = {
+            let mut s = Signature::new(config.default_call_conv);
+            s.params.reserve(3);
+            s.params.push(AbiParam::new(pointer_type));
+            s.params.push(AbiParam::new(pointer_type));
+            s.params.push(AbiParam::new(pointer_type));
+            s.returns.push(AbiParam::new(types::I32));
+            self.import_signature(s)
+        };
+
+        let libc_memcmp = self.import_function(ExtFuncData {
+            name: ExternalName::LibCall(LibCall::Memcmp),
+            signature,
+            colocated: false,
+        });
+
+        let call = self.ins().call(libc_memcmp, &[left, right, size]);
+        self.func.dfg.first_result(call)
+    }
 }
 
 fn greatest_divisible_power_of_two(size: u64) -> u64 {
@@ -1273,6 +1309,70 @@ block0:
     v3 = uextend.i32 v1
     call fn0(v0, v3, v2)
     return v0
+}
+"
+        );
+    }
+
+    #[test]
+    fn memcmp() {
+        use core::str::FromStr;
+        use cranelift_codegen::{isa, settings};
+
+        let shared_builder = settings::builder();
+        let shared_flags = settings::Flags::new(shared_builder);
+
+        let triple =
+            ::target_lexicon::Triple::from_str("x86_64").expect("Couldn't create x86_64 triple");
+
+        let target = isa::lookup(triple)
+            .ok()
+            .map(|b| b.finish(shared_flags))
+            .expect("This test requires x86_64 support.");
+
+        let mut sig = Signature::new(target.default_call_conv());
+        sig.returns.push(AbiParam::new(I32));
+
+        let mut fn_ctx = FunctionBuilderContext::new();
+        let mut func = Function::with_name_signature(ExternalName::testcase("sample"), sig);
+        {
+            let mut builder = FunctionBuilder::new(&mut func, &mut fn_ctx);
+
+            let block0 = builder.create_block();
+            let x = Variable::new(0);
+            let y = Variable::new(1);
+            let z = Variable::new(2);
+            builder.declare_var(x, target.pointer_type());
+            builder.declare_var(y, target.pointer_type());
+            builder.declare_var(z, target.pointer_type());
+            builder.append_block_params_for_function_params(block0);
+            builder.switch_to_block(block0);
+
+            let left = builder.use_var(x);
+            let right = builder.use_var(y);
+            let size = builder.use_var(z);
+            let cmp = builder.call_memcmp(target.frontend_config(), left, right, size);
+            builder.ins().return_(&[cmp]);
+
+            builder.seal_all_blocks();
+            builder.finalize();
+        }
+
+        assert_eq!(
+            func.display(None).to_string(),
+            "function %sample() -> i32 system_v {
+    sig0 = (i64, i64, i64) -> i32 system_v
+    fn0 = %Memcmp sig0
+
+block0:
+    v6 = iconst.i64 0
+    v2 -> v6
+    v5 = iconst.i64 0
+    v1 -> v5
+    v4 = iconst.i64 0
+    v0 -> v4
+    v3 = call fn0(v0, v1, v2)
+    return v3
 }
 "
         );
