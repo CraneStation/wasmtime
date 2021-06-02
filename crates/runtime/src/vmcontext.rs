@@ -143,6 +143,10 @@ mod test_vmmemory_import {
 
 /// The fields compiled code needs to access to utilize a WebAssembly global
 /// variable imported from another instance.
+///
+/// Note that unlike with functions, tables, and memories, `VMGlobalImport`
+/// doesn't include a `vmctx` pointer. Globals are never resized, and don't
+/// require a `vmctx` pointer to access.
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct VMGlobalImport {
@@ -188,7 +192,7 @@ pub struct VMMemoryDefinition {
 #[cfg(test)]
 mod test_vmmemory_definition {
     use super::VMMemoryDefinition;
-    use memoffset::offset_of;
+    use memoffset::{offset_of, span_of};
     use std::mem::size_of;
     use wasmtime_environ::{Module, VMOffsets};
 
@@ -208,12 +212,10 @@ mod test_vmmemory_definition {
             offset_of!(VMMemoryDefinition, current_length),
             usize::from(offsets.vmmemory_definition_current_length())
         );
-        /* TODO: Assert that the size of `current_length` matches.
         assert_eq!(
-            size_of::<VMMemoryDefinition::current_length>(),
+            span_of!(VMMemoryDefinition, current_length).len(),
             usize::from(offsets.size_of_vmmemory_definition_current_length())
         );
-        */
     }
 }
 
@@ -232,7 +234,7 @@ pub struct VMTableDefinition {
 #[cfg(test)]
 mod test_vmtable_definition {
     use super::VMTableDefinition;
-    use memoffset::offset_of;
+    use memoffset::{offset_of, span_of};
     use std::mem::size_of;
     use wasmtime_environ::{Module, VMOffsets};
 
@@ -251,6 +253,10 @@ mod test_vmtable_definition {
         assert_eq!(
             offset_of!(VMTableDefinition, current_elements),
             usize::from(offsets.vmtable_definition_current_elements())
+        );
+        assert_eq!(
+            span_of!(VMTableDefinition, current_elements).len(),
+            usize::from(offsets.size_of_vmtable_definition_current_elements())
         );
     }
 }
@@ -724,8 +730,6 @@ mod test_vminterrupts {
 /// The struct here is empty, as the sizes of these fields are dynamic, and
 /// we can't describe them in Rust's type system. Sufficient memory is
 /// allocated at runtime.
-///
-/// TODO: We could move the globals into the `vmctx` allocation too.
 #[derive(Debug)]
 #[repr(C, align(16))] // align 16 since globals are aligned to that and contained inside
 pub struct VMContext {}

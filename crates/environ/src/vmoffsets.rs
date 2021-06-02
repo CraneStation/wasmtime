@@ -291,7 +291,7 @@ impl VMOffsets {
 
 /// Offsets for `*const VMFunctionBody`.
 impl VMOffsets {
-    /// The size of the `current_elements` field.
+    /// The size of a `*const VMFunctionBody`.
     #[allow(clippy::identity_op)]
     pub fn size_of_vmfunction_body_ptr(&self) -> u8 {
         1 * self.pointer_size
@@ -397,7 +397,7 @@ impl VMOffsets {
     /// The size of the `current_length` field.
     #[inline]
     pub fn size_of_vmmemory_definition_current_length(&self) -> u8 {
-        4
+        self.pointer_size
     }
 
     /// Return the size of `VMMemoryDefinition`.

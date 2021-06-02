@@ -83,7 +83,8 @@ impl From<ExportMemory> for Export {
 pub struct ExportGlobal {
     /// The address of the global storage.
     pub definition: *mut VMGlobalDefinition,
-    /// Pointer to the containing `VMContext`.
+    /// Pointer to a `VMContext` which has a lifetime at least as long as the
+    /// global. This may not be the `VMContext` which defines the global.
     pub vmctx: *mut VMContext,
     /// The global declaration, used for compatibilty checking.
     pub global: Global,
