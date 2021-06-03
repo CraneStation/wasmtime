@@ -4,6 +4,7 @@ use crate::variable::Variable;
 use cranelift_codegen::cursor::{Cursor, FuncCursor};
 use cranelift_codegen::entity::{EntitySet, SecondaryMap};
 use cranelift_codegen::ir;
+use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::function::DisplayFunction;
 use cranelift_codegen::ir::{
     types, AbiParam, Block, DataFlowGraph, ExtFuncData, ExternalName, FuncRef, Function,
@@ -814,6 +815,130 @@ impl<'a> FunctionBuilder<'a> {
 
         self.ins().call(libc_memmove, &[dest, source, size]);
     }
+
+    /// Calls libc.memcmp
+    ///
+    /// Compares `size` bytes from memory starting at `left` to memory starting
+    /// at `right`. Returns `0` if all `n` bytes are equal.  If the first difference
+    /// is at offset `i`, returns a positive integer if `ugt(left[i], right[i])`
+    /// and a negative integer if `ult(left[i], right[i])`.
+    ///
+    /// Returns a C `int`, which is currently always [`types::I32`].
+    pub fn call_memcmp(
+        &mut self,
+        config: TargetFrontendConfig,
+        left: Value,
+        right: Value,
+        size: Value,
+    ) -> Value {
+        let pointer_type = config.pointer_type();
+        let signature = {
+            let mut s = Signature::new(config.default_call_conv);
+            s.params.reserve(3);
+            s.params.push(AbiParam::new(pointer_type));
+            s.params.push(AbiParam::new(pointer_type));
+            s.params.push(AbiParam::new(pointer_type));
+            s.returns.push(AbiParam::new(types::I32));
+            self.import_signature(s)
+        };
+
+        let libc_memcmp = self.import_function(ExtFuncData {
+            name: ExternalName::LibCall(LibCall::Memcmp),
+            signature,
+            colocated: false,
+        });
+
+        let call = self.ins().call(libc_memcmp, &[left, right, size]);
+        self.func.dfg.first_result(call)
+    }
+
+    /// Optimised [`Self::call_memcmp`] for small copies.
+    ///
+    /// This implements the byte slice comparison `int_cc(left[..size], right[..size])`.
+    ///
+    /// `left_align` and `right_align` are the statically-known alignments of the
+    /// `left` and `right` pointers respectively.  These are used to know whether
+    /// to mark `load`s as aligned.  It's always fine to pass `1` for these, but
+    /// passing something higher than the true alignment may trap or otherwise
+    /// misbehave as described in [`MemFlags::aligned`].
+    ///
+    /// Note that `memcmp` is a *big-endian* and *unsigned* comparison.
+    /// As such, this panics when called with `IntCC::Signed*` or `IntCC::*Overflow`.
+    pub fn emit_small_memory_compare(
+        &mut self,
+        config: TargetFrontendConfig,
+        int_cc: IntCC,
+        left: Value,
+        right: Value,
+        size: u64,
+        left_align: std::num::NonZeroU8,
+        right_align: std::num::NonZeroU8,
+        flags: MemFlags,
+    ) -> Value {
+        use IntCC::*;
+        let (zero_cc, empty_imm) = match int_cc {
+            //
+            Equal => (Equal, true),
+            NotEqual => (NotEqual, false),
+
+            UnsignedLessThan => (SignedLessThan, false),
+            UnsignedGreaterThanOrEqual => (SignedGreaterThanOrEqual, true),
+            UnsignedGreaterThan => (SignedGreaterThan, false),
+            UnsignedLessThanOrEqual => (SignedLessThanOrEqual, true),
+
+            SignedLessThan
+            | SignedGreaterThanOrEqual
+            | SignedGreaterThan
+            | SignedLessThanOrEqual => {
+                panic!("Signed comparison {} not supported by memcmp", int_cc)
+            }
+            Overflow | NotOverflow => {
+                panic!("Overflow comparison {} not supported by memcmp", int_cc)
+            }
+        };
+
+        if size == 0 {
+            return self.ins().bconst(types::B1, empty_imm);
+        }
+
+        // Future work could consider expanding this to handle more-complex scenarios.
+        fn type_from_byte_size(size: u64) -> Option<Type> {
+            if size > 16 {
+                return None;
+            }
+            Type::int(size as u16 * 8)
+        }
+        if let Some(small_type) = type_from_byte_size(size) {
+            if let Equal | NotEqual = zero_cc {
+                let mut left_flags = flags;
+                if size == left_align.get().into() {
+                    left_flags.set_aligned();
+                }
+                let mut right_flags = flags;
+                if size == right_align.get().into() {
+                    right_flags.set_aligned();
+                }
+                let left_val = self.ins().load(small_type, left_flags, left, 0);
+                let right_val = self.ins().load(small_type, right_flags, right, 0);
+                return self.ins().icmp(int_cc, left_val, right_val);
+            } else if small_type == types::I8 {
+                // Once the big-endian loads from wasmtime#2492 are implemented in
+                // the backends, we could easily handle comparisons for more sizes here.
+                // But for now, just handle single bytes where we don't need to worry.
+
+                let mut aligned_flags = flags;
+                aligned_flags.set_aligned();
+                let left_val = self.ins().load(small_type, aligned_flags, left, 0);
+                let right_val = self.ins().load(small_type, aligned_flags, right, 0);
+                return self.ins().icmp(int_cc, left_val, right_val);
+            }
+        }
+
+        let pointer_type = config.pointer_type();
+        let size = self.ins().iconst(pointer_type, size as i64);
+        let cmp = self.call_memcmp(config, left, right, size);
+        self.ins().icmp_imm(zero_cc, cmp, 0)
+    }
 }
 
 fn greatest_divisible_power_of_two(size: u64) -> u64 {
@@ -850,11 +975,12 @@ mod tests {
     use crate::Variable;
     use alloc::string::ToString;
     use cranelift_codegen::entity::EntityRef;
+    use cranelift_codegen::ir::condcodes::IntCC;
     use cranelift_codegen::ir::types::*;
     use cranelift_codegen::ir::{
-        AbiParam, ExternalName, Function, InstBuilder, MemFlags, Signature,
+        AbiParam, ExternalName, Function, InstBuilder, MemFlags, Signature, Value,
     };
-    use cranelift_codegen::isa::CallConv;
+    use cranelift_codegen::isa::{CallConv, TargetIsa};
     use cranelift_codegen::settings;
     use cranelift_codegen::verifier::verify_function;
 
@@ -1280,6 +1406,269 @@ block0:
     return v0
 }
 "
+        );
+    }
+
+    #[test]
+    fn memcmp() {
+        use core::str::FromStr;
+        use cranelift_codegen::isa;
+
+        let shared_builder = settings::builder();
+        let shared_flags = settings::Flags::new(shared_builder);
+
+        let triple =
+            ::target_lexicon::Triple::from_str("x86_64").expect("Couldn't create x86_64 triple");
+
+        let target = isa::lookup(triple)
+            .ok()
+            .map(|b| b.finish(shared_flags))
+            .expect("This test requires x86_64 support.");
+
+        let mut sig = Signature::new(target.default_call_conv());
+        sig.returns.push(AbiParam::new(I32));
+
+        let mut fn_ctx = FunctionBuilderContext::new();
+        let mut func = Function::with_name_signature(ExternalName::testcase("sample"), sig);
+        {
+            let mut builder = FunctionBuilder::new(&mut func, &mut fn_ctx);
+
+            let block0 = builder.create_block();
+            let x = Variable::new(0);
+            let y = Variable::new(1);
+            let z = Variable::new(2);
+            builder.declare_var(x, target.pointer_type());
+            builder.declare_var(y, target.pointer_type());
+            builder.declare_var(z, target.pointer_type());
+            builder.append_block_params_for_function_params(block0);
+            builder.switch_to_block(block0);
+
+            let left = builder.use_var(x);
+            let right = builder.use_var(y);
+            let size = builder.use_var(z);
+            let cmp = builder.call_memcmp(target.frontend_config(), left, right, size);
+            builder.ins().return_(&[cmp]);
+
+            builder.seal_all_blocks();
+            builder.finalize();
+        }
+
+        assert_eq!(
+            func.display(None).to_string(),
+            "function %sample() -> i32 system_v {
+    sig0 = (i64, i64, i64) -> i32 system_v
+    fn0 = %Memcmp sig0
+
+block0:
+    v6 = iconst.i64 0
+    v2 -> v6
+    v5 = iconst.i64 0
+    v1 -> v5
+    v4 = iconst.i64 0
+    v0 -> v4
+    v3 = call fn0(v0, v1, v2)
+    return v3
+}
+"
+        );
+    }
+
+    #[test]
+    fn small_memcmp_zero_size() {
+        let align_eight = std::num::NonZeroU8::new(8).unwrap();
+        small_memcmp_helper(
+            "
+block0:
+    v4 = iconst.i64 0
+    v1 -> v4
+    v3 = iconst.i64 0
+    v0 -> v3
+    v2 = bconst.b1 true
+    return v2",
+            |builder, target, x, y| {
+                builder.emit_small_memory_compare(
+                    target.frontend_config(),
+                    IntCC::UnsignedGreaterThanOrEqual,
+                    x,
+                    y,
+                    0,
+                    align_eight,
+                    align_eight,
+                    MemFlags::new(),
+                )
+            },
+        );
+    }
+
+    #[test]
+    fn small_memcmp_byte_ugt() {
+        let align_one = std::num::NonZeroU8::new(1).unwrap();
+        small_memcmp_helper(
+            "
+block0:
+    v6 = iconst.i64 0
+    v1 -> v6
+    v5 = iconst.i64 0
+    v0 -> v5
+    v2 = load.i8 aligned v0
+    v3 = load.i8 aligned v1
+    v4 = icmp ugt v2, v3
+    return v4",
+            |builder, target, x, y| {
+                builder.emit_small_memory_compare(
+                    target.frontend_config(),
+                    IntCC::UnsignedGreaterThan,
+                    x,
+                    y,
+                    1,
+                    align_one,
+                    align_one,
+                    MemFlags::new(),
+                )
+            },
+        );
+    }
+
+    #[test]
+    fn small_memcmp_aligned_eq() {
+        let align_four = std::num::NonZeroU8::new(4).unwrap();
+        small_memcmp_helper(
+            "
+block0:
+    v6 = iconst.i64 0
+    v1 -> v6
+    v5 = iconst.i64 0
+    v0 -> v5
+    v2 = load.i32 aligned v0
+    v3 = load.i32 aligned v1
+    v4 = icmp eq v2, v3
+    return v4",
+            |builder, target, x, y| {
+                builder.emit_small_memory_compare(
+                    target.frontend_config(),
+                    IntCC::Equal,
+                    x,
+                    y,
+                    4,
+                    align_four,
+                    align_four,
+                    MemFlags::new(),
+                )
+            },
+        );
+    }
+
+    #[test]
+    fn small_memcmp_ipv6_ne() {
+        let align_two = std::num::NonZeroU8::new(2).unwrap();
+        small_memcmp_helper(
+            "
+block0:
+    v6 = iconst.i64 0
+    v1 -> v6
+    v5 = iconst.i64 0
+    v0 -> v5
+    v2 = load.i128 v0
+    v3 = load.i128 v1
+    v4 = icmp ne v2, v3
+    return v4",
+            |builder, target, x, y| {
+                builder.emit_small_memory_compare(
+                    target.frontend_config(),
+                    IntCC::NotEqual,
+                    x,
+                    y,
+                    16,
+                    align_two,
+                    align_two,
+                    MemFlags::new(),
+                )
+            },
+        );
+    }
+
+    #[test]
+    fn small_memcmp_odd_size_uge() {
+        let one = std::num::NonZeroU8::new(1).unwrap();
+        small_memcmp_helper(
+            "
+    sig0 = (i64, i64, i64) -> i32 system_v
+    fn0 = %Memcmp sig0
+
+block0:
+    v6 = iconst.i64 0
+    v1 -> v6
+    v5 = iconst.i64 0
+    v0 -> v5
+    v2 = iconst.i64 3
+    v3 = call fn0(v0, v1, v2)
+    v4 = icmp_imm sge v3, 0
+    return v4",
+            |builder, target, x, y| {
+                builder.emit_small_memory_compare(
+                    target.frontend_config(),
+                    IntCC::UnsignedGreaterThanOrEqual,
+                    x,
+                    y,
+                    3,
+                    one,
+                    one,
+                    MemFlags::new(),
+                )
+            },
+        );
+    }
+
+    fn small_memcmp_helper(
+        expected: &str,
+        f: impl FnOnce(&mut FunctionBuilder, &dyn TargetIsa, Value, Value) -> Value,
+    ) {
+        use core::str::FromStr;
+        use cranelift_codegen::isa;
+
+        let shared_builder = settings::builder();
+        let shared_flags = settings::Flags::new(shared_builder);
+
+        let triple =
+            ::target_lexicon::Triple::from_str("x86_64").expect("Couldn't create x86_64 triple");
+
+        let target = isa::lookup(triple)
+            .ok()
+            .map(|b| b.finish(shared_flags))
+            .expect("This test requires x86_64 support.");
+
+        let mut sig = Signature::new(target.default_call_conv());
+        sig.returns.push(AbiParam::new(B1));
+
+        let mut fn_ctx = FunctionBuilderContext::new();
+        let mut func = Function::with_name_signature(ExternalName::testcase("sample"), sig);
+        {
+            let mut builder = FunctionBuilder::new(&mut func, &mut fn_ctx);
+
+            let block0 = builder.create_block();
+            let x = Variable::new(0);
+            let y = Variable::new(1);
+            builder.declare_var(x, target.pointer_type());
+            builder.declare_var(y, target.pointer_type());
+            builder.append_block_params_for_function_params(block0);
+            builder.switch_to_block(block0);
+
+            let left = builder.use_var(x);
+            let right = builder.use_var(y);
+            let ret = f(&mut builder, &*target, left, right);
+            builder.ins().return_(&[ret]);
+
+            builder.seal_all_blocks();
+            builder.finalize();
+        }
+
+        let actual_ir = func.display(None).to_string();
+        let expected_ir = format!("function %sample() -> b1 system_v {{{}\n}}\n", expected);
+        assert!(
+            expected_ir == actual_ir,
+            "Expected\n{}, but got\n{}",
+            expected_ir,
+            actual_ir
         );
     }
 
