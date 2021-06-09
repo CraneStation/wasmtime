@@ -17,6 +17,7 @@ use cranelift_native;
 #[cfg(not(windows))]
 use libc;
 use log::info;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::ffi::CString;
@@ -35,6 +36,7 @@ const READONLY_DATA_ALIGNMENT: u64 = 0x1;
 pub struct JITBuilder {
     isa: Box<dyn TargetIsa>,
     symbols: HashMap<String, *const u8>,
+    lookup_symbols: Vec<Box<dyn Fn(&str) -> Option<*const u8>>>,
     libcall_names: Box<dyn Fn(ir::LibCall) -> String + Send + Sync>,
     hotswap_enabled: bool,
 }
@@ -75,9 +77,11 @@ impl JITBuilder {
         libcall_names: Box<dyn Fn(ir::LibCall) -> String + Send + Sync>,
     ) -> Self {
         let symbols = HashMap::new();
+        let lookup_symbols = vec![Box::new(lookup_with_dlsym) as Box<_>];
         Self {
             isa,
             symbols,
+            lookup_symbols,
             libcall_names,
             hotswap_enabled: false,
         }
@@ -97,7 +101,7 @@ impl JITBuilder {
     /// back to a platform-specific search (this typically involves searching
     /// the current process for public symbols, followed by searching the
     /// platform's C runtime).
-    pub fn symbol<K>(&mut self, name: K, ptr: *const u8) -> &Self
+    pub fn symbol<K>(&mut self, name: K, ptr: *const u8) -> &mut Self
     where
         K: Into<String>,
     {
@@ -108,7 +112,7 @@ impl JITBuilder {
     /// Define multiple symbols in the internal symbol table.
     ///
     /// Using this is equivalent to calling `symbol` on each element.
-    pub fn symbols<It, K>(&mut self, symbols: It) -> &Self
+    pub fn symbols<It, K>(&mut self, symbols: It) -> &mut Self
     where
         It: IntoIterator<Item = (K, *const u8)>,
         K: Into<String>,
@@ -116,6 +120,18 @@ impl JITBuilder {
         for (name, ptr) in symbols {
             self.symbols.insert(name.into(), ptr);
         }
+        self
+    }
+
+    /// Add a symbol lookup fn.
+    ///
+    /// Symbol lookup fn's are used to lookup symbols when they couldn't be found in the internal
+    /// symbol table. Symbol lookup fn's are called in reverse of the order in which they were added.
+    pub fn symbol_lookup_fn(
+        &mut self,
+        symbol_lookup_fn: Box<dyn Fn(&str) -> Option<*const u8>>,
+    ) -> &mut Self {
+        self.lookup_symbols.push(symbol_lookup_fn);
         self
     }
 
@@ -136,7 +152,8 @@ impl JITBuilder {
 pub struct JITModule {
     isa: Box<dyn TargetIsa>,
     hotswap_enabled: bool,
-    symbols: HashMap<String, *const u8>,
+    symbols: RefCell<HashMap<String, *const u8>>,
+    lookup_symbols: Vec<Box<dyn Fn(&str) -> Option<*const u8>>>,
     libcall_names: Box<dyn Fn(ir::LibCall) -> String>,
     memory: MemoryHandle,
     declarations: ModuleDeclarations,
@@ -174,10 +191,20 @@ impl JITModule {
     }
 
     fn lookup_symbol(&self, name: &str) -> Option<*const u8> {
-        self.symbols
-            .get(name)
-            .copied()
-            .or_else(|| lookup_with_dlsym(name))
+        match self.symbols.borrow_mut().entry(name.to_owned()) {
+            std::collections::hash_map::Entry::Occupied(occ) => Some(*occ.get()),
+            std::collections::hash_map::Entry::Vacant(vac) => {
+                let ptr = self
+                    .lookup_symbols
+                    .iter()
+                    .rev() // Try last lookup function first
+                    .find_map(|lookup| lookup(name));
+                if let Some(ptr) = ptr {
+                    vac.insert(ptr);
+                }
+                ptr
+            }
+        }
     }
 
     fn new_func_plt_entry(&mut self, id: FuncId, val: *const u8) {
@@ -268,7 +295,7 @@ impl JITModule {
                         }
                     }
                 };
-                if let Some(ptr) = self.lookup_symbol(&name) {
+                if let Some(ptr) = self.lookup_symbol(name) {
                     ptr
                 } else if linkage == Linkage::Preemptible {
                     0 as *const u8
@@ -491,7 +518,8 @@ impl JITModule {
         Self {
             isa: builder.isa,
             hotswap_enabled: builder.hotswap_enabled,
-            symbols: builder.symbols,
+            symbols: RefCell::new(builder.symbols),
+            lookup_symbols: builder.lookup_symbols,
             libcall_names: builder.libcall_names,
             memory,
             declarations: ModuleDeclarations::default(),
