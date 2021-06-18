@@ -119,7 +119,7 @@ pub fn generate(
             isa::Isa::S390x => {
                 // s390x doesn't have platform-specific settings.
             }
-            isa::Isa::Arm32 | isa::Isa::Riscv => todo!(),
+            isa::Isa::Arm32 => todo!(),
         }
     }
 

@@ -5,14 +5,12 @@ use std::fmt;
 
 mod arm32;
 mod arm64;
-mod riscv;
 mod s390x;
 pub(crate) mod x86;
 
 /// Represents known ISA target.
 #[derive(PartialEq, Copy, Clone)]
 pub enum Isa {
-    Riscv,
     X86,
     Arm32,
     Arm64,
@@ -31,7 +29,6 @@ impl Isa {
     /// Creates isa target from arch.
     pub fn from_arch(arch: &str) -> Option<Self> {
         match arch {
-            "riscv" => Some(Isa::Riscv),
             "aarch64" => Some(Isa::Arm64),
             "s390x" => Some(Isa::S390x),
             x if ["x86_64", "i386", "i586", "i686"].contains(&x) => Some(Isa::X86),
@@ -42,7 +39,7 @@ impl Isa {
 
     /// Returns all supported isa targets.
     pub fn all() -> &'static [Isa] {
-        &[Isa::Riscv, Isa::X86, Isa::Arm32, Isa::Arm64, Isa::S390x]
+        &[Isa::X86, Isa::Arm32, Isa::Arm64, Isa::S390x]
     }
 }
 
@@ -50,7 +47,6 @@ impl fmt::Display for Isa {
     // These names should be kept in sync with the crate features.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Isa::Riscv => write!(f, "riscv"),
             Isa::X86 => write!(f, "x86"),
             Isa::Arm32 => write!(f, "arm32"),
             Isa::Arm64 => write!(f, "arm64"),
@@ -62,7 +58,6 @@ impl fmt::Display for Isa {
 pub(crate) fn define(isas: &[Isa], shared_defs: &mut SharedDefinitions) -> Vec<TargetIsa> {
     isas.iter()
         .map(|isa| match isa {
-            Isa::Riscv => riscv::define(shared_defs),
             Isa::X86 => x86::define(shared_defs),
             Isa::Arm32 => arm32::define(shared_defs),
             Isa::Arm64 => arm64::define(shared_defs),

@@ -70,9 +70,6 @@ use core::fmt::{Debug, Formatter};
 use core::hash::Hasher;
 use target_lexicon::{triple, Architecture, OperatingSystem, PointerWidth, Triple};
 
-#[cfg(feature = "riscv")]
-mod riscv;
-
 // This module is made public here for benchmarking purposes. No guarantees are
 // made regarding API stability.
 #[cfg(feature = "x86")]
@@ -118,9 +115,6 @@ macro_rules! isa_builder {
 /// by `variant` if available.
 pub fn lookup_variant(triple: Triple) -> Result<Builder, LookupError> {
     match triple.architecture {
-        Architecture::Riscv32 { .. } | Architecture::Riscv64 { .. } => {
-            isa_builder!(riscv, (feature = "riscv"), triple)
-        }
         Architecture::X86_64 => {
             isa_builder!(x64, (feature = "x86"), triple)
         }

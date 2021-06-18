@@ -1,12 +1,11 @@
-use cranelift_codegen::isa;
+use cranelift_codegen::isa::{CallConv, TargetFrontendConfig};
 use cranelift_codegen::print_errors::pretty_verifier_error;
 use cranelift_codegen::settings::{self, Flags};
 use cranelift_codegen::verifier;
 use cranelift_wasm::{translate_module, DummyEnvironment, FuncIndex, ReturnMode};
 use std::fs;
 use std::path::Path;
-use std::str::FromStr;
-use target_lexicon::triple;
+use target_lexicon::PointerWidth;
 
 #[test]
 fn testsuite() {
@@ -52,11 +51,15 @@ fn use_name_section() {
     )
     .unwrap();
 
-    let flags = Flags::new(settings::builder());
-    let triple = triple!("riscv64");
-    let isa = isa::lookup(triple).unwrap().finish(flags.clone());
     let return_mode = ReturnMode::NormalReturns;
-    let mut dummy_environ = DummyEnvironment::new(isa.frontend_config(), return_mode, false);
+    let mut dummy_environ = DummyEnvironment::new(
+        TargetFrontendConfig {
+            default_call_conv: CallConv::SystemV,
+            pointer_width: PointerWidth::U32,
+        },
+        return_mode,
+        false,
+    );
 
     translate_module(data.as_ref(), &mut dummy_environ).unwrap();
 
@@ -82,15 +85,20 @@ fn read_module(path: &Path) -> Vec<u8> {
 }
 
 fn handle_module(data: Vec<u8>, flags: &Flags, return_mode: ReturnMode) {
-    let triple = triple!("riscv64");
-    let isa = isa::lookup(triple).unwrap().finish(flags.clone());
-    let mut dummy_environ = DummyEnvironment::new(isa.frontend_config(), return_mode, false);
+    let mut dummy_environ = DummyEnvironment::new(
+        TargetFrontendConfig {
+            default_call_conv: CallConv::SystemV,
+            pointer_width: PointerWidth::U64,
+        },
+        return_mode,
+        false,
+    );
 
     translate_module(&data, &mut dummy_environ).unwrap();
 
     for func in dummy_environ.info.function_bodies.values() {
-        verifier::verify_function(func, &*isa)
-            .map_err(|errors| panic!("{}", pretty_verifier_error(func, Some(&*isa), None, errors)))
+        verifier::verify_function(func, flags)
+            .map_err(|errors| panic!("{}", pretty_verifier_error(func, None, None, errors)))
             .unwrap();
     }
 }
@@ -168,10 +176,14 @@ fn reachability_is_correct() {
 
     for (return_mode, wat, expected_reachability) in tests {
         println!("testing wat:\n{}", wat);
-        let flags = Flags::new(settings::builder());
-        let triple = triple!("riscv64");
-        let isa = isa::lookup(triple).unwrap().finish(flags.clone());
-        let mut env = DummyEnvironment::new(isa.frontend_config(), return_mode, false);
+        let mut env = DummyEnvironment::new(
+            TargetFrontendConfig {
+                default_call_conv: CallConv::SystemV,
+                pointer_width: PointerWidth::U64,
+            },
+            return_mode,
+            false,
+        );
         env.test_expected_reachability(expected_reachability);
         let data = wat::parse_str(wat).unwrap();
         translate_module(data.as_ref(), &mut env).unwrap();

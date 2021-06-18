@@ -23,13 +23,11 @@ use crate::isa::TargetIsa;
 #[cfg(any(
     feature = "arm32",
     feature = "arm64",
-    feature = "riscv"
 ))]
 use crate::predicates;
 #[cfg(any(
     feature = "arm32",
     feature = "arm64",
-    feature = "riscv"
 ))]
 use alloc::vec::Vec;
 
