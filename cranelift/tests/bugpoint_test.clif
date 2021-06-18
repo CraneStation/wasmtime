@@ -300,7 +300,8 @@ block0(v0: i64, v1: i64, v2: i64):
     v241 -> v1
     v256 -> v1
     v262 -> v1
-    v3, v4 = x86_sdivmodx v0, v1, v2
+    v3 = imul v0, v1
+    v4 = imul v1, v2
     store aligned v4, v3
     v5 = load.i64 aligned v2+8
     store aligned v5, v3+8

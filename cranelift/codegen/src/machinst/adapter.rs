@@ -3,7 +3,7 @@
 use crate::binemit;
 use crate::ir;
 use crate::isa::{
-    BackendVariant, EncInfo, Encoding, Encodings, Legalize, RegClass, RegInfo, TargetIsa,
+    EncInfo, Encoding, Encodings, Legalize, RegClass, RegInfo, TargetIsa,
 };
 use crate::machinst::*;
 use crate::regalloc::RegisterSet;
@@ -62,10 +62,6 @@ impl TargetIsa for TargetIsaAdapter {
 
     fn isa_flags(&self) -> Vec<settings::Value> {
         self.backend.isa_flags()
-    }
-
-    fn variant(&self) -> BackendVariant {
-        BackendVariant::MachInst
     }
 
     fn hash_all_flags(&self, hasher: &mut dyn Hasher) {

@@ -21,14 +21,12 @@ use crate::ir::{self, InstBuilder, MemFlags};
 use crate::isa::TargetIsa;
 
 #[cfg(any(
-    feature = "x86",
     feature = "arm32",
     feature = "arm64",
     feature = "riscv"
 ))]
 use crate::predicates;
 #[cfg(any(
-    feature = "x86",
     feature = "arm32",
     feature = "arm64",
     feature = "riscv"

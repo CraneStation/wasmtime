@@ -1,9 +1,0 @@
-test binemit
-set enable_simd
-target x86_64 legacy has_avx512vl=true
-
-function %fcvt_from_uint(i32x4) {
-block0(v0: i32x4 [%xmm2]):
-[-, %xmm6]  v1 = x86_vcvtudq2ps v0 ; bin: 62 f1 7f 08 7a f2
-    return
-}

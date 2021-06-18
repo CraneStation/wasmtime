@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst
+target x86_64
 
 function u0:0(i64 sarg(64)) -> i8 system_v {
 block0(v0: i64):

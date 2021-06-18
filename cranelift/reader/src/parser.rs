@@ -21,7 +21,7 @@ use cranelift_codegen::ir::{
     HeapStyle, JumpTable, JumpTableData, MemFlags, Opcode, SigRef, Signature, StackSlot,
     StackSlotData, StackSlotKind, Table, TableData, Type, Value, ValueLoc,
 };
-use cranelift_codegen::isa::{self, BackendVariant, CallConv, Encoding, RegUnit, TargetIsa};
+use cranelift_codegen::isa::{self, CallConv, Encoding, RegUnit, TargetIsa};
 use cranelift_codegen::packed_option::ReservedValue;
 use cranelift_codegen::{settings, settings::Configurable, timing};
 use smallvec::SmallVec;
@@ -1204,19 +1204,7 @@ impl<'a> Parser<'a> {
                         Ok(triple) => triple,
                         Err(err) => return err!(loc, err),
                     };
-                    // Look for `machinst` or `legacy` option before instantiating IsaBuilder.
-                    let variant = match words.peek() {
-                        Some(&"machinst") => {
-                            words.next();
-                            BackendVariant::MachInst
-                        }
-                        Some(&"legacy") => {
-                            words.next();
-                            BackendVariant::Legacy
-                        }
-                        _ => BackendVariant::Any,
-                    };
-                    let mut isa_builder = match isa::lookup_variant(triple, variant) {
+                    let mut isa_builder = match isa::lookup_variant(triple) {
                         Err(isa::LookupError::SupportDisabled) => {
                             continue;
                         }

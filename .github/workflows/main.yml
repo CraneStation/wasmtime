@@ -326,28 +326,6 @@ jobs:
       env:
         RUST_BACKTRACE: 1
 
-  # Perform all tests (debug mode) for `wasmtime` with the old x86 backend.
-  test_x86:
-    name: Test old x86 backend
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - uses: ./.github/actions/install-rust
-      with:
-        toolchain: stable
-
-    # Install wasm32 targets in order to build various tests throughout the
-    # repo.
-    - run: rustup target add wasm32-wasi
-    - run: rustup target add wasm32-unknown-unknown
-
-    # Run the old x86 backend CI (we will eventually remove this).
-    - run: ./ci/run-tests.sh --features old-x86-backend --locked
-      env:
-        RUST_BACKTRACE: 1
-
   # Build and test the wasi-nn module.
   test_wasi_nn:
     name: Test wasi-nn module

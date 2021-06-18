@@ -1,6 +1,6 @@
 test compile
 set enable_simd
-target x86_64 machinst has_ssse3 has_sse41
+target x86_64 has_ssse3 has_sse41
 
 ;; shuffle
 

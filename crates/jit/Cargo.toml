@@ -48,8 +48,5 @@ vtune = ["wasmtime-profiling/vtune"]
 parallel-compilation = ["rayon"]
 all-arch = ["cranelift-codegen/all-arch"]
 
-# Use the old x86 backend.
-old-x86-backend = ["cranelift-codegen/old-x86-backend"]
-
 [badges]
 maintenance = { status = "actively-developed" }

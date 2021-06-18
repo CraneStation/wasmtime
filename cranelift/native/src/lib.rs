@@ -30,7 +30,7 @@ use target_lexicon::Triple;
 /// machine, or `Err(())` if the host machine is not supported
 /// in the current configuration.
 pub fn builder() -> Result<isa::Builder, &'static str> {
-    builder_with_options(isa::BackendVariant::Any, true)
+    builder_with_options(true)
 }
 
 /// Return an `isa` builder configured for the current host
@@ -40,17 +40,11 @@ pub fn builder() -> Result<isa::Builder, &'static str> {
 /// Selects the given backend variant specifically; this is
 /// useful when more than oen backend exists for a given target
 /// (e.g., on x86-64).
-pub fn builder_with_options(
-    variant: isa::BackendVariant,
-    infer_native_flags: bool,
-) -> Result<isa::Builder, &'static str> {
-    let mut isa_builder =
-        isa::lookup_variant(Triple::host(), variant).map_err(|err| match err {
-            isa::LookupError::SupportDisabled => {
-                "support for architecture disabled at compile time"
-            }
-            isa::LookupError::Unsupported => "unsupported architecture",
-        })?;
+pub fn builder_with_options(infer_native_flags: bool) -> Result<isa::Builder, &'static str> {
+    let mut isa_builder = isa::lookup_variant(Triple::host()).map_err(|err| match err {
+        isa::LookupError::SupportDisabled => "support for architecture disabled at compile time",
+        isa::LookupError::Unsupported => "unsupported architecture",
+    })?;
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
