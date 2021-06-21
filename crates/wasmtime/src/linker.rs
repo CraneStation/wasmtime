@@ -136,8 +136,8 @@ macro_rules! generate_wrap_async_func {
                     "_async` without enabling async support on the config",
                 ),
             );
-            self.func_wrap(module, name, move |mut caller: Caller<'_, T>, $($args: $args),*| {
-                let async_cx = caller.store.as_context_mut().opaque().async_cx();
+            self.func_wrap(module, name, move |caller: Caller<'_, T>, $($args: $args),*| {
+                let async_cx = caller.store.0.async_cx();
                 let mut future = Pin::from(func(caller, $($args),*));
                 match unsafe { async_cx.block_on(future.as_mut()) } {
                     Ok(ret) => ret.into_fallible(),
@@ -328,8 +328,8 @@ impl<T> Linker<T> {
             self.engine.config().async_support,
             "cannot use `func_new_async` without enabling async support in the config"
         );
-        self.func_new(module, name, ty, move |mut caller, params, results| {
-            let async_cx = caller.store.as_context_mut().opaque().async_cx();
+        self.func_new(module, name, ty, move |caller, params, results| {
+            let async_cx = caller.store.0.async_cx();
             let mut future = Pin::from(func(caller, params, results));
             match unsafe { async_cx.block_on(future.as_mut()) } {
                 Ok(Ok(())) => Ok(()),

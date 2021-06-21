@@ -50,18 +50,6 @@ impl<'a, T> StoreContextMut<'a, T> {
         }
     }
 
-    /// Same as `opaque`, but produces a value which implements the `Send`
-    /// trait. Useful for futures.
-    pub(crate) fn opaque_send(mut self) -> StoreOpaqueSend<'a>
-    where
-        T: Send,
-    {
-        StoreOpaqueSend {
-            traitobj: self.traitobj(),
-            inner: self.0,
-        }
-    }
-
     fn traitobj(&mut self) -> *mut dyn wasmtime_runtime::Store {
         unsafe {
             std::mem::transmute::<
@@ -236,41 +224,6 @@ impl<'a> Deref for StoreOpaque<'a> {
 }
 
 impl<'a> DerefMut for StoreOpaque<'a> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.inner
-    }
-}
-
-pub struct StoreOpaqueSend<'a> {
-    /// The actual pointer to the `StoreInner` internals.
-    inner: &'a mut StoreInnermost,
-    pub traitobj: *mut dyn wasmtime_runtime::Store,
-}
-
-// This is needed due to the raw pointer `traitobj`, which is simply a pointer
-// to `inner` which is already `Send`.
-unsafe impl Send for StoreOpaqueSend<'_> {}
-
-impl StoreOpaqueSend<'_> {
-    pub fn opaque(&mut self) -> StoreOpaque<'_> {
-        StoreOpaque {
-            inner: &mut *self.inner,
-            traitobj: self.traitobj,
-        }
-    }
-}
-
-impl<'a> Deref for StoreOpaqueSend<'a> {
-    type Target = StoreInnermost;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &*self.inner
-    }
-}
-
-impl<'a> DerefMut for StoreOpaqueSend<'a> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut *self.inner

@@ -73,8 +73,11 @@ impl<'a, Resume, Yield, Return> Fiber<'a, Resume, Yield, Return> {
     pub fn new(
         stack: FiberStack,
         func: impl FnOnce(Resume, &Suspend<Resume, Yield, Return>) -> Return + 'a,
-    ) -> io::Result<Self> {
-        let inner = imp::Fiber::new(&stack.0, func)?;
+    ) -> Result<Self, (io::Error, FiberStack)> {
+        let inner = match imp::Fiber::new(&stack.0, func) {
+            Ok(inner) => inner,
+            Err(e) => return Err((e, stack)),
+        };
 
         Ok(Self {
             stack,

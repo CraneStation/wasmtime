@@ -1,6 +1,6 @@
 use crate::linker::Definition;
 use crate::signatures::SignatureCollection;
-use crate::store::{InstanceId, StoreData, StoreOpaque, StoreOpaqueSend, Stored};
+use crate::store::{InstanceId, StoreData, StoreOpaque, Stored};
 use crate::types::matching;
 use crate::{
     AsContext, AsContextMut, Engine, Export, Extern, ExternType, Func, Global, InstanceType,
@@ -123,12 +123,12 @@ impl Instance {
     ) -> Result<Instance, Error> {
         // This unsafety comes from `Instantiator::new` where we must typecheck
         // first, which we are sure to do here.
+        let mut cx = store.as_context_mut().opaque();
         let mut i = unsafe {
-            let mut cx = store.as_context_mut().opaque();
             typecheck_externs(&mut cx, module, imports)?;
             Instantiator::new(&mut cx, module, ImportSource::Externs(imports))?
         };
-        i.run(store.as_context_mut().opaque())
+        i.run(&mut cx)
     }
 
     /// Same as [`Instance::new`], except for usage in [asynchronous stores].
@@ -154,17 +154,17 @@ impl Instance {
         mut store: impl AsContextMut<Data = T>,
         module: &Module,
         imports: &[Extern],
-    ) -> Result<Instance, Error>
+    ) -> Result<Instance>
     where
         T: Send,
     {
         // See `new` for unsafety comments
-        let mut i = unsafe {
+        let mut instantiator = unsafe {
             let mut cx = store.as_context_mut().opaque();
             typecheck_externs(&mut cx, module, imports)?;
             Instantiator::new(&mut cx, module, ImportSource::Externs(imports))?
         };
-        i.run_async(store.as_context_mut().opaque_send()).await
+        instantiator.run_async(store).await
     }
 
     pub(crate) fn from_wasmtime(handle: InstanceData, store: &mut StoreOpaque) -> Instance {
@@ -466,7 +466,7 @@ impl<'a> Instantiator<'a> {
         })
     }
 
-    fn run(&mut self, mut store: StoreOpaque<'_>) -> Result<Instance, Error> {
+    fn run(&mut self, store: &mut StoreOpaque<'_>) -> Result<Instance, Error> {
         assert!(
             !store.async_support(),
             "cannot use `new` when async support is enabled on the config"
@@ -475,9 +475,9 @@ impl<'a> Instantiator<'a> {
         // NB: this is the same code as `run_async`. It's intentionally
         // small but should be kept in sync (modulo the async bits).
         loop {
-            if let Some((instance, start, toplevel)) = self.step(&mut store)? {
+            if let Some((instance, start, toplevel)) = self.step(store)? {
                 if let Some(start) = start {
-                    Instantiator::start_raw(&mut store, instance, start)?;
+                    Instantiator::start_raw(store, instance, start)?;
                 }
                 if toplevel {
                     break Ok(instance);
@@ -487,21 +487,29 @@ impl<'a> Instantiator<'a> {
     }
 
     #[cfg(feature = "async")]
-    async fn run_async(&mut self, mut store: StoreOpaqueSend<'_>) -> Result<Instance, Error> {
+    async fn run_async<T>(
+        &mut self,
+        mut store: impl AsContextMut<Data = T>,
+    ) -> Result<Instance, Error>
+    where
+        T: Send,
+    {
+        let mut cx = store.as_context_mut();
         assert!(
-            store.async_support(),
+            cx.0.async_support(),
             "cannot use `new_async` without enabling async support on the config"
         );
 
-        // NB: this is the same code as `run`. It's intentionally
+        // NB: this is similar code to `run`. It's intentionally
         // small but should be kept in sync (modulo the async bits).
         loop {
-            let step = self.step(&mut store.opaque())?;
+            let step = self.step(&mut cx.as_context_mut().opaque())?;
             if let Some((instance, start, toplevel)) = step {
                 if let Some(start) = start {
-                    store
-                        .on_fiber(|store| Instantiator::start_raw(store, instance, start))
-                        .await??;
+                    crate::store::on_fiber(cx.as_context_mut(), |store| {
+                        Instantiator::start_raw(store, instance, start)
+                    })
+                    .await?;
                 }
                 if toplevel {
                     break Ok(instance);
@@ -953,7 +961,7 @@ impl<T> InstancePre<T> {
                 &self.module,
                 ImportSource::Definitions(&self.items),
             )?
-            .run(store)
+            .run(&mut store)
         }
     }
 
@@ -986,7 +994,7 @@ impl<T> InstancePre<T> {
                 ImportSource::Definitions(&self.items),
             )?
         };
-        i.run_async(store.as_context_mut().opaque_send()).await
+        i.run_async(store).await
     }
 
     fn ensure_comes_from_same_store(&self, store: &StoreOpaque<'_>) -> Result<()> {

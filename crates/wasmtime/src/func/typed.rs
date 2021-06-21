@@ -95,25 +95,19 @@ where
     /// connected to a synchronous store.
     #[cfg(feature = "async")]
     #[cfg_attr(nightlydoc, doc(cfg(feature = "async")))]
-    pub async fn call_async<T>(
-        &self,
-        mut store: impl AsContextMut<Data = T>,
+    pub fn call_async<'a, T>(
+        &'a self,
+        store: impl AsContextMut<Data = T> + 'a,
         params: Params,
-    ) -> Result<Results, Trap>
+    ) -> impl crate::WasmtimeFuture<Data = T, Output = Result<Results, Trap>> + 'a
     where
         T: Send,
     {
-        store.as_context_mut().0.exiting_native_hook()?;
-        let mut store_opaque = store.as_context_mut().opaque_send();
         assert!(
-            store_opaque.async_support(),
+            store.as_context().async_support(),
             "must use `call` with non-async stores"
         );
-        let r = store_opaque
-            .on_fiber(|store| unsafe { self._call(store, params) })
-            .await?;
-        store.as_context_mut().0.entering_native_hook()?;
-        r
+        crate::store::on_fiber(store, move |store| unsafe { self._call(store, params) })
     }
 
     unsafe fn _call(&self, store: &mut StoreOpaque<'_>, params: Params) -> Result<Results, Trap> {

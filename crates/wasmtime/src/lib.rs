@@ -393,6 +393,8 @@ pub use crate::linker::*;
 pub use crate::memory::*;
 pub use crate::module::{FrameInfo, FrameSymbol, Module};
 pub use crate::r#ref::ExternRef;
+#[cfg(feature = "async")]
+pub use crate::store::WasmtimeFuture;
 pub use crate::store::{
     AsContext, AsContextMut, InterruptHandle, Store, StoreContext, StoreContextMut,
 };

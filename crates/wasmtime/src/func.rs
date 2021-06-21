@@ -1,4 +1,4 @@
-use crate::store::{StoreData, StoreOpaque, StoreOpaqueSend, Stored};
+use crate::store::{StoreData, StoreOpaque, Stored};
 use crate::{
     AsContext, AsContextMut, Engine, Extern, FuncType, Instance, InterruptHandle, StoreContext,
     StoreContextMut, Trap, Val, ValType,
@@ -258,8 +258,8 @@ macro_rules! generate_wrap_async_func {
             R: WasmRet,
         {
             assert!(store.as_context().async_support(), concat!("cannot use `wrap", $num, "_async` without enabling async support on the config"));
-            Func::wrap(store, move |mut caller: Caller<'_, T>, $($args: $args),*| {
-                let async_cx = caller.store.as_context_mut().opaque().async_cx();
+            Func::wrap(store, move |caller: Caller<'_, T>, $($args: $args),*| {
+                let async_cx = caller.store.0.async_cx();
                 let mut future = Pin::from(func(caller, $($args),*));
                 match unsafe { async_cx.block_on(future.as_mut()) } {
                     Ok(ret) => ret.into_fallible(),
@@ -395,8 +395,8 @@ impl Func {
             store.as_context().async_support(),
             "cannot use `new_async` without enabling async support in the config"
         );
-        Func::new(store, ty, move |mut caller, params, results| {
-            let async_cx = caller.store.as_context_mut().opaque().async_cx();
+        Func::new(store, ty, move |caller, params, results| {
+            let async_cx = caller.store.0.async_cx();
             let mut future = Pin::from(func(caller, params, results));
             match unsafe { async_cx.block_on(future.as_mut()) } {
                 Ok(Ok(())) => Ok(()),
@@ -711,38 +711,20 @@ impl Func {
     /// panics if `store` does not own this function.
     #[cfg(feature = "async")]
     #[cfg_attr(nightlydoc, doc(cfg(feature = "async")))]
-    pub async fn call_async<T>(
-        &self,
-        mut store: impl AsContextMut<Data = T>,
-        params: &[Val],
-    ) -> Result<Box<[Val]>>
+    pub fn call_async<'a, T>(
+        &'a self,
+        store: impl AsContextMut<Data = T> + 'a,
+        params: &'a [Val],
+    ) -> impl crate::WasmtimeFuture<Data = T, Output = Result<Box<[Val]>>> + 'a
     where
         T: Send,
     {
-        let my_ty = self.ty(&store);
-        store.as_context_mut().0.exiting_native_hook()?;
-        let r = self
-            ._call_async(store.as_context_mut().opaque_send(), my_ty, params)
-            .await;
-        store.as_context_mut().0.entering_native_hook()?;
-        r
-    }
-
-    #[cfg(feature = "async")]
-    async fn _call_async(
-        &self,
-        mut store: StoreOpaqueSend<'_>,
-        my_ty: FuncType,
-        params: &[Val],
-    ) -> Result<Box<[Val]>> {
         assert!(
-            store.async_support(),
-            "cannot use `call_async` without enabling async support in the config",
+            store.as_context().async_support(),
+            "must use `call` with non-async stores"
         );
-        let result = store
-            .on_fiber(|store| self.call_impl(store, my_ty, params))
-            .await??;
-        Ok(result)
+        let my_ty = self.ty(&store);
+        crate::store::on_fiber(store, move |store| self.call_impl(store, my_ty, params))
     }
 
     fn call_impl(

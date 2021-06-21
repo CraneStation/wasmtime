@@ -1,18 +1,13 @@
 use crate::{module::ModuleRegistry, Engine, Module, Trap};
 use anyhow::{bail, Result};
-use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
-use std::future::Future;
 use std::marker;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::ptr;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use wasmtime_runtime::{
     InstanceAllocationRequest, InstanceAllocator, InstanceHandle, ModuleInfo,
     OnDemandInstanceAllocator, SignalHandler, VMCallerCheckedAnyfunc, VMContext, VMExternRef,
@@ -23,6 +18,10 @@ mod context;
 pub use self::context::*;
 mod data;
 pub use self::data::*;
+#[cfg(feature = "async")]
+mod future;
+#[cfg(feature = "async")]
+pub use self::future::{on_fiber, WasmtimeFuture};
 
 /// A [`Store`] is a collection of WebAssembly instances and host-defined state.
 ///
@@ -144,25 +143,11 @@ pub struct StoreInnermost {
     /// to get the true amount of fuel consumed.
     fuel_adj: i64,
     #[cfg(feature = "async")]
-    async_state: AsyncState,
+    async_state: future::AsyncState,
     out_of_gas_behavior: OutOfGas,
     store_data: StoreData,
     default_callee: InstanceHandle,
 }
-
-#[cfg(feature = "async")]
-struct AsyncState {
-    current_suspend:
-        UnsafeCell<*const wasmtime_fiber::Suspend<Result<(), Trap>, (), Result<(), Trap>>>,
-    current_poll_cx: UnsafeCell<*mut Context<'static>>,
-}
-
-// Lots of pesky unsafe cells and pointers in this structure. This means we need
-// to declare explicitly that we use this in a threadsafe fashion.
-#[cfg(feature = "async")]
-unsafe impl Send for AsyncState {}
-#[cfg(feature = "async")]
-unsafe impl Sync for AsyncState {}
 
 /// Used to associate instances with the store.
 ///
@@ -232,10 +217,7 @@ impl<T> Store<T> {
                 table_limit: wasmtime_runtime::DEFAULT_TABLE_LIMIT,
                 fuel_adj: 0,
                 #[cfg(feature = "async")]
-                async_state: AsyncState {
-                    current_suspend: UnsafeCell::new(ptr::null()),
-                    current_poll_cx: UnsafeCell::new(ptr::null_mut()),
-                },
+                async_state: future::AsyncState::new(),
                 out_of_gas_behavior: OutOfGas::Trap,
                 store_data: StoreData::new(),
                 default_callee,
@@ -786,16 +768,6 @@ impl StoreInnermost {
         panic!("trampoline missing")
     }
 
-    #[cfg(feature = "async")]
-    #[inline]
-    pub fn async_cx(&self) -> AsyncCx {
-        debug_assert!(self.async_support());
-        AsyncCx {
-            current_suspend: self.async_state.current_suspend.get(),
-            current_poll_cx: self.async_state.current_poll_cx.get(),
-        }
-    }
-
     pub fn fuel_consumed(&self) -> Option<u64> {
         if !self.engine.config().tunables.consume_fuel {
             return None;
@@ -817,52 +789,6 @@ impl StoreInnermost {
             injection_count,
             fuel_to_inject,
         };
-    }
-
-    /// Yields execution to the caller on out-of-gas
-    ///
-    /// This only works on async futures and stores, and assumes that we're
-    /// executing on a fiber. This will yield execution back to the caller once
-    /// and when we come back we'll continue with `fuel_to_inject` more fuel.
-    #[cfg(feature = "async")]
-    fn out_of_gas_yield(&mut self, fuel_to_inject: u64) -> Result<(), Trap> {
-        // Small future that yields once and then returns ()
-        #[derive(Default)]
-        struct Yield {
-            yielded: bool,
-        }
-
-        impl Future for Yield {
-            type Output = ();
-
-            fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-                if self.yielded {
-                    Poll::Ready(())
-                } else {
-                    // Flag ourselves as yielded to return next time, and also
-                    // flag the waker that we're already ready to get
-                    // re-enqueued for another poll.
-                    self.yielded = true;
-                    cx.waker().wake_by_ref();
-                    Poll::Pending
-                }
-            }
-        }
-
-        let mut future = Yield::default();
-        let result = unsafe { self.async_cx().block_on(Pin::new_unchecked(&mut future)) };
-        match result {
-            // If this finished successfully then we were resumed normally via a
-            // `poll`, so inject some more fuel and keep going.
-            Ok(()) => {
-                self.add_fuel(fuel_to_inject).unwrap();
-                Ok(())
-            }
-            // If the future was dropped while we were yielded, then we need to
-            // clean up this fiber. Do so by raising a trap which will abort all
-            // wasm and get caught on the other side to clean things up.
-            Err(trap) => Err(trap),
-        }
     }
 
     fn add_fuel(&mut self, fuel: u64) -> Result<()> {
@@ -921,289 +847,6 @@ impl StoreInnermost {
     }
 }
 
-impl StoreOpaqueSend<'_> {
-    /// Executes a synchronous computation `func` asynchronously on a new fiber.
-    ///
-    /// This function will convert the synchronous `func` into an asynchronous
-    /// future. This is done by running `func` in a fiber on a separate native
-    /// stack which can be suspended and resumed from.
-    ///
-    /// Most of the nitty-gritty here is how we juggle the various contexts
-    /// necessary to suspend the fiber later on and poll sub-futures. It's hoped
-    /// that the various comments are illuminating as to what's going on here.
-    #[cfg(feature = "async")]
-    pub async fn on_fiber<R>(
-        &mut self,
-        func: impl FnOnce(&mut StoreOpaque<'_>) -> R + Send,
-    ) -> Result<R, Trap> {
-        let config = self.engine.config();
-
-        debug_assert!(self.async_support());
-        debug_assert!(config.async_stack_size > 0);
-
-        let mut slot = None;
-        let future = {
-            let current_poll_cx = self.async_state.current_poll_cx.get();
-            let current_suspend = self.async_state.current_suspend.get();
-            let stack = self
-                .engine
-                .allocator()
-                .allocate_fiber_stack()
-                .map_err(|e| Trap::from(anyhow::Error::from(e)))?;
-
-            let engine = self.engine().clone();
-            let slot = &mut slot;
-            let fiber = wasmtime_fiber::Fiber::new(stack, move |keep_going, suspend| {
-                // First check and see if we were interrupted/dropped, and only
-                // continue if we haven't been.
-                keep_going?;
-
-                // Configure our store's suspension context for the rest of the
-                // execution of this fiber. Note that a raw pointer is stored here
-                // which is only valid for the duration of this closure.
-                // Consequently we at least replace it with the previous value when
-                // we're done. This reset is also required for correctness because
-                // otherwise our value will overwrite another active fiber's value.
-                // There should be a test that segfaults in `async_functions.rs` if
-                // this `Replace` is removed.
-                unsafe {
-                    let _reset = Reset(current_suspend, *current_suspend);
-                    *current_suspend = suspend;
-
-                    *slot = Some(func(&mut self.opaque()));
-                    Ok(())
-                }
-            })
-            .map_err(|e| Trap::from(anyhow::Error::from(e)))?;
-
-            // Once we have the fiber representing our synchronous computation, we
-            // wrap that in a custom future implementation which does the
-            // translation from the future protocol to our fiber API.
-            FiberFuture {
-                fiber,
-                current_poll_cx,
-                engine,
-            }
-        };
-        future.await?;
-
-        return Ok(slot.unwrap());
-
-        struct FiberFuture<'a> {
-            fiber: wasmtime_fiber::Fiber<'a, Result<(), Trap>, (), Result<(), Trap>>,
-            current_poll_cx: *mut *mut Context<'static>,
-            engine: Engine,
-        }
-
-        // This is surely the most dangerous `unsafe impl Send` in the entire
-        // crate. There are two members in `FiberFuture` which cause it to not
-        // be `Send`. One is `current_poll_cx` and is entirely uninteresting.
-        // This is just used to manage `Context` pointers across `await` points
-        // in the future, and requires raw pointers to get it to happen easily.
-        // Nothing too weird about the `Send`-ness, values aren't actually
-        // crossing threads.
-        //
-        // The really interesting piece is `fiber`. Now the "fiber" here is
-        // actual honest-to-god Rust code which we're moving around. What we're
-        // doing is the equivalent of moving our thread's stack to another OS
-        // thread. Turns out we, in general, have no idea what's on the stack
-        // and would generally have no way to verify that this is actually safe
-        // to do!
-        //
-        // Thankfully, though, Wasmtime has the power. Without being glib it's
-        // actually worth examining what's on the stack. It's unfortunately not
-        // super-local to this function itself. Our closure to `Fiber::new` runs
-        // `func`, which is given to us from the outside. Thankfully, though, we
-        // have tight control over this. Usage of `on_fiber` is typically done
-        // *just* before entering WebAssembly itself, so we'll have a few stack
-        // frames of Rust code (all in Wasmtime itself) before we enter wasm.
-        //
-        // Once we've entered wasm, well then we have a whole bunch of wasm
-        // frames on the stack. We've got this nifty thing called Cranelift,
-        // though, which allows us to also have complete control over everything
-        // on the stack!
-        //
-        // Finally, when wasm switches back to the fiber's starting pointer
-        // (this future we're returning) then it means wasm has reentered Rust.
-        // Suspension can only happen via the `block_on` function of an
-        // `AsyncCx`. This, conveniently, also happens entirely in Wasmtime
-        // controlled code!
-        //
-        // There's an extremely important point that should be called out here.
-        // User-provided futures **are not on the stack** during suspension
-        // points. This is extremely crucial because we in general cannot reason
-        // about Send/Sync for stack-local variables since rustc doesn't analyze
-        // them at all. With our construction, though, we are guaranteed that
-        // Wasmtime owns all stack frames between the stack of a fiber and when
-        // the fiber suspends (and it could move across threads). At this time
-        // the only user-provided piece of data on the stack is the future
-        // itself given to us. Lo-and-behold as you might notice the future is
-        // required to be `Send`!
-        //
-        // What this all boils down to is that we, as the authors of Wasmtime,
-        // need to be extremely careful that on the async fiber stack we only
-        // store Send things. For example we can't start using `Rc` willy nilly
-        // by accident and leave a copy in TLS somewhere. (similarly we have to
-        // be ready for TLS to change while we're executing wasm code between
-        // suspension points).
-        //
-        // While somewhat onerous it shouldn't be too too hard (the TLS bit is
-        // the hardest bit so far). This does mean, though, that no user should
-        // ever have to worry about the `Send`-ness of Wasmtime. If rustc says
-        // it's ok, then it's ok.
-        //
-        // With all that in mind we unsafely assert here that wasmtime is
-        // correct. We declare the fiber as only containing Send data on its
-        // stack, despite not knowing for sure at compile time that this is
-        // correct. That's what `unsafe` in Rust is all about, though, right?
-        unsafe impl Send for FiberFuture<'_> {}
-
-        impl Future for FiberFuture<'_> {
-            type Output = Result<(), Trap>;
-
-            fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-                // We need to carry over this `cx` into our fiber's runtime
-                // for when it tries to poll sub-futures that are created. Doing
-                // this must be done unsafely, however, since `cx` is only alive
-                // for this one singular function call. Here we do a `transmute`
-                // to extend the lifetime of `Context` so it can be stored in
-                // our `Store`, and then we replace the current polling context
-                // with this one.
-                //
-                // Note that the replace is done for weird situations where
-                // futures might be switching contexts and there's multiple
-                // wasmtime futures in a chain of futures.
-                //
-                // On exit from this function, though, we reset the polling
-                // context back to what it was to signify that `Store` no longer
-                // has access to this pointer.
-                unsafe {
-                    let _reset = Reset(self.current_poll_cx, *self.current_poll_cx);
-                    *self.current_poll_cx =
-                        std::mem::transmute::<&mut Context<'_>, *mut Context<'static>>(cx);
-
-                    // After that's set up we resume execution of the fiber, which
-                    // may also start the fiber for the first time. This either
-                    // returns `Ok` saying the fiber finished (yay!) or it returns
-                    // `Err` with the payload passed to `suspend`, which in our case
-                    // is `()`. If `Err` is returned that means the fiber polled a
-                    // future but it said "Pending", so we propagate that here.
-                    match self.fiber.resume(Ok(())) {
-                        Ok(result) => Poll::Ready(result),
-                        Err(()) => Poll::Pending,
-                    }
-                }
-            }
-        }
-
-        // Dropping futures is pretty special in that it means the future has
-        // been requested to be cancelled. Here we run the risk of dropping an
-        // in-progress fiber, and if we were to do nothing then the fiber would
-        // leak all its owned stack resources.
-        //
-        // To handle this we implement `Drop` here and, if the fiber isn't done,
-        // resume execution of the fiber saying "hey please stop you're
-        // interrupted". Our `Trap` created here (which has the stack trace
-        // of whomever dropped us) will then get propagated in whatever called
-        // `block_on`, and the idea is that the trap propagates all the way back
-        // up to the original fiber start, finishing execution.
-        //
-        // We don't actually care about the fiber's return value here (no one's
-        // around to look at it), we just assert the fiber finished to
-        // completion.
-        impl Drop for FiberFuture<'_> {
-            fn drop(&mut self) {
-                if !self.fiber.done() {
-                    let result = self.fiber.resume(Err(Trap::new("future dropped")));
-                    // This resumption with an error should always complete the
-                    // fiber. While it's technically possible for host code to catch
-                    // the trap and re-resume, we'd ideally like to signal that to
-                    // callers that they shouldn't be doing that.
-                    debug_assert!(result.is_ok());
-                }
-
-                unsafe {
-                    self.engine
-                        .allocator()
-                        .deallocate_fiber_stack(self.fiber.stack());
-                }
-            }
-        }
-    }
-}
-
-#[cfg(feature = "async")]
-pub struct AsyncCx {
-    current_suspend: *mut *const wasmtime_fiber::Suspend<Result<(), Trap>, (), Result<(), Trap>>,
-    current_poll_cx: *mut *mut Context<'static>,
-}
-
-#[cfg(feature = "async")]
-impl AsyncCx {
-    /// Blocks on the asynchronous computation represented by `future` and
-    /// produces the result here, in-line.
-    ///
-    /// This function is designed to only work when it's currently executing on
-    /// a native fiber. This fiber provides the ability for us to handle the
-    /// future's `Pending` state as "jump back to whomever called the fiber in
-    /// an asynchronous fashion and propagate `Pending`". This tight coupling
-    /// with `on_fiber` below is what powers the asynchronicity of calling wasm.
-    /// Note that the asynchronous part only applies to host functions, wasm
-    /// itself never really does anything asynchronous at this time.
-    ///
-    /// This function takes a `future` and will (appear to) synchronously wait
-    /// on the result. While this function is executing it will fiber switch
-    /// to-and-from the original frame calling `on_fiber` which should be a
-    /// guarantee due to how async stores are configured.
-    ///
-    /// The return value here is either the output of the future `T`, or a trap
-    /// which represents that the asynchronous computation was cancelled. It is
-    /// not recommended to catch the trap and try to keep executing wasm, so
-    /// we've tried to liberally document this.
-    pub unsafe fn block_on<U>(
-        &self,
-        mut future: Pin<&mut (dyn Future<Output = U> + Send)>,
-    ) -> Result<U, Trap> {
-        // Take our current `Suspend` context which was configured as soon as
-        // our fiber started. Note that we must load it at the front here and
-        // save it on our stack frame. While we're polling the future other
-        // fibers may be started for recursive computations, and the current
-        // suspend context is only preserved at the edges of the fiber, not
-        // during the fiber itself.
-        //
-        // For a little bit of extra safety we also replace the current value
-        // with null to try to catch any accidental bugs on our part early.
-        // This is all pretty unsafe so we're trying to be careful...
-        //
-        // Note that there should be a segfaulting test  in `async_functions.rs`
-        // if this `Reset` is removed.
-        let suspend = *self.current_suspend;
-        let _reset = Reset(self.current_suspend, suspend);
-        *self.current_suspend = ptr::null();
-        assert!(!suspend.is_null());
-
-        loop {
-            let future_result = {
-                let poll_cx = *self.current_poll_cx;
-                let _reset = Reset(self.current_poll_cx, poll_cx);
-                *self.current_poll_cx = ptr::null_mut();
-                assert!(!poll_cx.is_null());
-                future.as_mut().poll(&mut *poll_cx)
-            };
-
-            match future_result {
-                Poll::Ready(t) => break Ok(t),
-                Poll::Pending => {}
-            }
-
-            let before = wasmtime_runtime::TlsRestore::take().map_err(Trap::from_runtime)?;
-            let res = (*suspend).suspend(());
-            before.replace().map_err(Trap::from_runtime)?;
-            res?;
-        }
-    }
-}
-
 unsafe impl<T> wasmtime_runtime::Store for StoreInner<T> {
     fn vminterrupts(&self) -> *mut VMInterrupts {
         <StoreInnermost>::vminterrupts(self)
@@ -1236,7 +879,7 @@ unsafe impl<T> wasmtime_runtime::Store for StoreInner<T> {
                 }
                 *injection_count -= 1;
                 let fuel = *fuel_to_inject;
-                StoreContextMut(self).opaque().out_of_gas_yield(fuel)?;
+                self.out_of_gas_yield(fuel)?;
                 Ok(())
             }
             #[cfg(not(feature = "async"))]
@@ -1327,15 +970,5 @@ impl InterruptHandle {
     /// [`Store::interrupt_handle`].
     pub fn interrupt(&self) {
         self.interrupts.interrupt()
-    }
-}
-
-struct Reset<T: Copy>(*mut T, T);
-
-impl<T: Copy> Drop for Reset<T> {
-    fn drop(&mut self) {
-        unsafe {
-            *self.0 = self.1;
-        }
     }
 }
