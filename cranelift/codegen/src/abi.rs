@@ -4,8 +4,6 @@
 //! `TargetIsa::legalize_signature()` method.
 
 use crate::ir::{AbiParam, ArgumentExtension, ArgumentLoc, Type};
-use alloc::borrow::Cow;
-use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 /// Legalization action to perform on a single argument or return value when converting a
@@ -17,10 +15,6 @@ use core::cmp::Ordering;
 pub enum ArgAction {
     /// Assign the argument to the given location.
     Assign(ArgumentLoc),
-
-    /// Assign the argument to the given location and change the type to the specified type.
-    /// This is used by [`ArgumentPurpose::StructArgument`].
-    AssignAndChangeType(ArgumentLoc, Type),
 
     /// Convert the argument, then call again.
     ///
@@ -63,96 +57,12 @@ pub enum ValueConversion {
     Pointer(Type),
 }
 
-impl ValueConversion {
-    /// Apply this conversion to a type, return the converted type.
-    pub fn apply(self, ty: Type) -> Type {
-        match self {
-            Self::IntSplit => ty.half_width().expect("Integer type too small to split"),
-            Self::VectorSplit => ty.half_vector().expect("Not a vector"),
-            Self::IntBits => Type::int(ty.bits()).expect("Bad integer size"),
-            Self::Sext(nty) | Self::Uext(nty) | Self::Pointer(nty) => nty,
-        }
-    }
-
-    /// Is this a split conversion that results in two arguments?
-    pub fn is_split(self) -> bool {
-        match self {
-            Self::IntSplit | Self::VectorSplit => true,
-            _ => false,
-        }
-    }
-
-    /// Is this a conversion to pointer?
-    pub fn is_pointer(self) -> bool {
-        match self {
-            Self::Pointer(_) => true,
-            _ => false,
-        }
-    }
-}
-
 /// Common trait for assigning arguments to registers or stack locations.
 ///
 /// This will be implemented by individual ISAs.
 pub trait ArgAssigner {
     /// Pick an assignment action for function argument (or return value) `arg`.
     fn assign(&mut self, arg: &AbiParam) -> ArgAction;
-}
-
-/// Legalize the arguments in `args` using the given argument assigner.
-///
-/// This function can be used for both arguments and return values.
-pub fn legalize_args<AA: ArgAssigner>(args: &[AbiParam], aa: &mut AA) -> Option<Vec<AbiParam>> {
-    let mut args = Cow::Borrowed(args);
-
-    // Iterate over the arguments.
-    // We may need to mutate the vector in place, so don't use a normal iterator, and clone the
-    // argument to avoid holding a reference.
-    let mut argno = 0;
-    while let Some(arg) = args.get(argno).cloned() {
-        // Leave the pre-assigned arguments alone.
-        // We'll assume that they don't interfere with our assignments.
-        if arg.location.is_assigned() {
-            argno += 1;
-            continue;
-        }
-
-        match aa.assign(&arg) {
-            // Assign argument to a location and move on to the next one.
-            ArgAction::Assign(loc) => {
-                args.to_mut()[argno].location = loc;
-                argno += 1;
-            }
-            // Assign argument to a location, change type to the requested one and move on to the
-            // next one.
-            ArgAction::AssignAndChangeType(loc, ty) => {
-                let arg = &mut args.to_mut()[argno];
-                arg.location = loc;
-                arg.value_type = ty;
-                argno += 1;
-            }
-            // Split this argument into two smaller ones. Then revisit both.
-            ArgAction::Convert(conv) => {
-                debug_assert!(
-                    !arg.legalized_to_pointer,
-                    "No more conversions allowed after conversion to pointer"
-                );
-                let value_type = conv.apply(arg.value_type);
-                args.to_mut()[argno].value_type = value_type;
-                if conv.is_pointer() {
-                    args.to_mut()[argno].legalized_to_pointer = true;
-                } else if conv.is_split() {
-                    let new_arg = AbiParam { value_type, ..arg };
-                    args.to_mut().insert(argno + 1, new_arg);
-                }
-            }
-        }
-    }
-
-    match args {
-        Cow::Borrowed(_) => None,
-        Cow::Owned(a) => Some(a),
-    }
 }
 
 /// Determine the right action to take when passing a `have` value type to a call signature where
