@@ -8,7 +8,6 @@ pub mod error;
 pub mod isa;
 
 mod gen_inst;
-mod gen_legalizer;
 mod gen_registers;
 mod gen_settings;
 mod gen_types;
@@ -52,21 +51,6 @@ pub fn generate(
         &shared_defs.all_instructions,
         "opcodes.rs",
         "inst_builder.rs",
-        &out_dir,
-    )?;
-
-    let extra_legalization_groups: &[&'static str] = if !new_backend_isas.is_empty() {
-        // The new backend only requires the "expand" legalization group.
-        &["expand"]
-    } else {
-        &[]
-    };
-
-    gen_legalizer::generate(
-        &target_isas,
-        &shared_defs.transform_groups,
-        extra_legalization_groups,
-        "legalize",
         &out_dir,
     )?;
 

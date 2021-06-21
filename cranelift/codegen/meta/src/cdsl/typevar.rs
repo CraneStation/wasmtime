@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 use std::fmt;
 use std::hash;
 use std::iter::FromIterator;
@@ -269,52 +269,6 @@ impl TypeVar {
     pub fn merge_lanes(&self) -> TypeVar {
         self.derived(DerivedFunc::MergeLanes)
     }
-
-    /// Constrain the range of types this variable can assume to a subset of those in the typeset
-    /// ts.
-    /// May mutate itself if it's not derived, or its parent if it is.
-    pub fn constrain_types_by_ts(&self, type_set: TypeSet) {
-        match &self.base {
-            Some(base) => {
-                base.type_var
-                    .constrain_types_by_ts(type_set.preimage(base.derived_func));
-            }
-            None => {
-                self.content
-                    .borrow_mut()
-                    .type_set
-                    .inplace_intersect_with(&type_set);
-            }
-        }
-    }
-
-    /// Constrain the range of types this variable can assume to a subset of those `other` can
-    /// assume.
-    /// May mutate itself if it's not derived, or its parent if it is.
-    pub fn constrain_types(&self, other: TypeVar) {
-        if self == &other {
-            return;
-        }
-        self.constrain_types_by_ts(other.get_typeset());
-    }
-
-    /// Get a Rust expression that computes the type of this type variable.
-    pub fn to_rust_code(&self) -> String {
-        match &self.base {
-            Some(base) => format!(
-                "{}.{}().unwrap()",
-                base.type_var.to_rust_code(),
-                base.derived_func.name()
-            ),
-            None => {
-                if let Some(singleton) = self.singleton_type() {
-                    singleton.rust_name()
-                } else {
-                    self.name.clone()
-                }
-            }
-        }
-    }
 }
 
 impl Into<TypeVar> for &TypeVar {
@@ -390,19 +344,6 @@ impl DerivedFunc {
             DerivedFunc::DoubleVector => "double_vector",
             DerivedFunc::SplitLanes => "split_lanes",
             DerivedFunc::MergeLanes => "merge_lanes",
-        }
-    }
-
-    /// Returns the inverse function of this one, if it is a bijection.
-    pub fn inverse(self) -> Option<DerivedFunc> {
-        match self {
-            DerivedFunc::HalfWidth => Some(DerivedFunc::DoubleWidth),
-            DerivedFunc::DoubleWidth => Some(DerivedFunc::HalfWidth),
-            DerivedFunc::HalfVector => Some(DerivedFunc::DoubleVector),
-            DerivedFunc::DoubleVector => Some(DerivedFunc::HalfVector),
-            DerivedFunc::MergeLanes => Some(DerivedFunc::SplitLanes),
-            DerivedFunc::SplitLanes => Some(DerivedFunc::MergeLanes),
-            _ => None,
         }
     }
 }
@@ -594,94 +535,6 @@ impl TypeSet {
         assert_eq!(types.len(), 1);
         types.remove(0)
     }
-
-    /// Return the inverse image of self across the derived function func.
-    fn preimage(&self, func: DerivedFunc) -> TypeSet {
-        if self.size() == 0 {
-            // The inverse of the empty set is itself.
-            return self.clone();
-        }
-
-        match func {
-            DerivedFunc::LaneOf => {
-                let mut copy = self.clone();
-                copy.lanes =
-                    NumSet::from_iter((0..=MAX_LANES.trailing_zeros()).map(|i| u16::pow(2, i)));
-                copy
-            }
-            DerivedFunc::AsBool => {
-                let mut copy = self.clone();
-                if self.bools.contains(&1) {
-                    copy.ints = NumSet::from_iter(vec![8, 16, 32, 64, 128]);
-                    copy.floats = NumSet::from_iter(vec![32, 64]);
-                } else {
-                    copy.ints = &self.bools - &NumSet::from_iter(vec![1]);
-                    copy.floats = &self.bools & &NumSet::from_iter(vec![32, 64]);
-                    // If b1 is not in our typeset, than lanes=1 cannot be in the pre-image, as
-                    // as_bool() of scalars is always b1.
-                    copy.lanes = &self.lanes - &NumSet::from_iter(vec![1]);
-                }
-                copy
-            }
-            DerivedFunc::HalfWidth => self.double_width(),
-            DerivedFunc::DoubleWidth => self.half_width(),
-            DerivedFunc::HalfVector => self.double_vector(),
-            DerivedFunc::DoubleVector => self.half_vector(),
-            DerivedFunc::SplitLanes => self.double_width().half_vector(),
-            DerivedFunc::MergeLanes => self.half_width().double_vector(),
-        }
-    }
-
-    pub fn inplace_intersect_with(&mut self, other: &TypeSet) {
-        self.lanes = &self.lanes & &other.lanes;
-        self.ints = &self.ints & &other.ints;
-        self.floats = &self.floats & &other.floats;
-        self.bools = &self.bools & &other.bools;
-        self.refs = &self.refs & &other.refs;
-
-        let mut new_specials = Vec::new();
-        for spec in &self.specials {
-            if let Some(spec) = other.specials.iter().find(|&other_spec| other_spec == spec) {
-                new_specials.push(*spec);
-            }
-        }
-        self.specials = new_specials;
-    }
-
-    pub fn is_subset(&self, other: &TypeSet) -> bool {
-        self.lanes.is_subset(&other.lanes)
-            && self.ints.is_subset(&other.ints)
-            && self.floats.is_subset(&other.floats)
-            && self.bools.is_subset(&other.bools)
-            && self.refs.is_subset(&other.refs)
-            && {
-                let specials: HashSet<SpecialType> = HashSet::from_iter(self.specials.clone());
-                let other_specials = HashSet::from_iter(other.specials.clone());
-                specials.is_subset(&other_specials)
-            }
-    }
-
-    pub fn is_wider_or_equal(&self, other: &TypeSet) -> bool {
-        set_wider_or_equal(&self.ints, &other.ints)
-            && set_wider_or_equal(&self.floats, &other.floats)
-            && set_wider_or_equal(&self.bools, &other.bools)
-            && set_wider_or_equal(&self.refs, &other.refs)
-    }
-
-    pub fn is_narrower(&self, other: &TypeSet) -> bool {
-        set_narrower(&self.ints, &other.ints)
-            && set_narrower(&self.floats, &other.floats)
-            && set_narrower(&self.bools, &other.bools)
-            && set_narrower(&self.refs, &other.refs)
-    }
-}
-
-fn set_wider_or_equal(s1: &NumSet, s2: &NumSet) -> bool {
-    !s1.is_empty() && !s2.is_empty() && s1.iter().min() >= s2.iter().max()
-}
-
-fn set_narrower(s1: &NumSet, s2: &NumSet) -> bool {
-    !s1.is_empty() && !s2.is_empty() && s1.iter().min() < s2.iter().max()
 }
 
 impl fmt::Debug for TypeSet {
@@ -805,18 +658,6 @@ impl TypeSetBuilder {
             range_to_set(self.refs.to_range(32..64, None)),
             self.specials,
         )
-    }
-
-    pub fn all() -> TypeSet {
-        TypeSetBuilder::new()
-            .ints(Interval::All)
-            .floats(Interval::All)
-            .bools(Interval::All)
-            .refs(Interval::All)
-            .simd_lanes(Interval::All)
-            .specials(ValueType::all_special_types().collect())
-            .includes_scalars(true)
-            .build()
     }
 }
 
@@ -1054,135 +895,6 @@ fn test_forward_images() {
     );
 }
 
-#[test]
-fn test_backward_images() {
-    let empty_set = TypeSetBuilder::new().build();
-
-    // LaneOf.
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(1..1)
-            .ints(8..8)
-            .floats(32..32)
-            .build()
-            .preimage(DerivedFunc::LaneOf),
-        TypeSetBuilder::new()
-            .simd_lanes(Interval::All)
-            .ints(8..8)
-            .floats(32..32)
-            .build()
-    );
-    assert_eq!(empty_set.preimage(DerivedFunc::LaneOf), empty_set);
-
-    // AsBool.
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(1..4)
-            .bools(1..128)
-            .build()
-            .preimage(DerivedFunc::AsBool),
-        TypeSetBuilder::new()
-            .simd_lanes(1..4)
-            .ints(Interval::All)
-            .bools(Interval::All)
-            .floats(Interval::All)
-            .build()
-    );
-
-    // Double vector.
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(1..1)
-            .ints(8..8)
-            .build()
-            .preimage(DerivedFunc::DoubleVector)
-            .size(),
-        0
-    );
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(1..16)
-            .ints(8..16)
-            .floats(32..32)
-            .build()
-            .preimage(DerivedFunc::DoubleVector),
-        TypeSetBuilder::new()
-            .simd_lanes(1..8)
-            .ints(8..16)
-            .floats(32..32)
-            .build(),
-    );
-
-    // Half vector.
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(256..256)
-            .ints(8..8)
-            .build()
-            .preimage(DerivedFunc::HalfVector)
-            .size(),
-        0
-    );
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(64..128)
-            .bools(1..32)
-            .build()
-            .preimage(DerivedFunc::HalfVector),
-        TypeSetBuilder::new()
-            .simd_lanes(128..256)
-            .bools(1..32)
-            .build(),
-    );
-
-    // Half width.
-    assert_eq!(
-        TypeSetBuilder::new()
-            .ints(128..128)
-            .floats(64..64)
-            .bools(128..128)
-            .build()
-            .preimage(DerivedFunc::HalfWidth)
-            .size(),
-        0
-    );
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(64..256)
-            .bools(1..64)
-            .build()
-            .preimage(DerivedFunc::HalfWidth),
-        TypeSetBuilder::new()
-            .simd_lanes(64..256)
-            .bools(16..128)
-            .build(),
-    );
-
-    // Double width.
-    assert_eq!(
-        TypeSetBuilder::new()
-            .ints(8..8)
-            .floats(32..32)
-            .bools(1..8)
-            .build()
-            .preimage(DerivedFunc::DoubleWidth)
-            .size(),
-        0
-    );
-    assert_eq!(
-        TypeSetBuilder::new()
-            .simd_lanes(1..16)
-            .ints(8..16)
-            .floats(32..64)
-            .build()
-            .preimage(DerivedFunc::DoubleWidth),
-        TypeSetBuilder::new()
-            .simd_lanes(1..16)
-            .ints(8..8)
-            .floats(32..32)
-            .build()
-    );
-}
 
 #[test]
 #[should_panic]

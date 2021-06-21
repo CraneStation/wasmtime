@@ -32,9 +32,6 @@ impl<'entries, T: Eq + Hash> UniqueTable<'entries, T> {
     pub fn len(&self) -> usize {
         self.table.len()
     }
-    pub fn get(&self, index: usize) -> &T {
-        self.table[index]
-    }
     pub fn iter(&self) -> slice::Iter<&'entries T> {
         self.table.iter()
     }
