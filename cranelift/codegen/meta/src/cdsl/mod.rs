@@ -7,7 +7,6 @@ pub mod formats;
 pub mod instructions;
 pub mod isa;
 pub mod operands;
-pub mod regs;
 pub mod settings;
 pub mod type_inference;
 pub mod types;

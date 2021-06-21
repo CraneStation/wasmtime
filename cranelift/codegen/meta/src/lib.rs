@@ -8,7 +8,6 @@ pub mod error;
 pub mod isa;
 
 mod gen_inst;
-mod gen_registers;
 mod gen_settings;
 mod gen_types;
 
@@ -55,8 +54,6 @@ pub fn generate(
     )?;
 
     for isa in target_isas {
-        gen_registers::generate(&isa, &format!("registers-{}.rs", isa.name), &out_dir)?;
-
         gen_settings::generate(
             &isa.settings,
             gen_settings::ParentGroup::Shared,
