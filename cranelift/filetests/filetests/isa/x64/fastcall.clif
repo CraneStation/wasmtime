@@ -1,7 +1,7 @@
 test compile
 set enable_llvm_abi_extensions=true
 set unwind_info=true
-target x86_64 machinst
+target x86_64
 
 function %f0(i64, i64, i64, i64) -> i64 windows_fastcall {
 block0(v0: i64, v1: i64, v2: i64, v3: i64):
@@ -206,7 +206,7 @@ block0(v0: i64):
   v18 = load.f64 v0+136
   v19 = load.f64 v0+144
   v20 = load.f64 v0+152
-  
+
   v21 = fadd.f64 v1, v2
   v22 = fadd.f64 v3, v4
   v23 = fadd.f64 v5, v6

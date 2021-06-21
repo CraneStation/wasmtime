@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst
+target x86_64
 
 ;; The goal of this test is to ensure that stack spills of an integer value,
 ;; which width is less than the machine word's size, cause the full word to be

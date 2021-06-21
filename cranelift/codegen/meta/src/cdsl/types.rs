@@ -237,20 +237,6 @@ impl LaneType {
             ValueType::Vector(VectorType::new(self, lanes.into()))
         }
     }
-
-    pub fn is_float(self) -> bool {
-        match self {
-            LaneType::Float(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_int(self) -> bool {
-        match self {
-            LaneType::Int(_) => true,
-            _ => false,
-        }
-    }
 }
 
 impl fmt::Display for LaneType {

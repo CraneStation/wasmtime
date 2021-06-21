@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst has_lzcnt
+target x86_64 has_lzcnt
 
 function %clz(i64) -> i64 {
 block0(v0: i64):

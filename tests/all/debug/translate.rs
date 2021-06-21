@@ -118,7 +118,7 @@ check:        DW_AT_decl_line	(10)
     // Ignore test on new backend. This is a specific test with hardcoded
     // offsets and the new backend compiles the return basic-block at a different
     // offset, causing mismatches.
-    feature = "old-x86-backend",
+    feature = "old-x86-backend", // TODO
 ))]
 fn test_debug_dwarf5_translate_lines() -> Result<()> {
     check_line_program(

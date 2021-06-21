@@ -4,7 +4,7 @@ use cranelift_codegen::binemit::{NullRelocSink, NullStackMapSink, NullTrapSink};
 use cranelift_codegen::data_value::DataValue;
 use cranelift_codegen::ir::immediates::{Ieee32, Ieee64};
 use cranelift_codegen::ir::{condcodes::IntCC, Function, InstBuilder, Signature, Type};
-use cranelift_codegen::isa::{BackendVariant, TargetIsa};
+use cranelift_codegen::isa::TargetIsa;
 use cranelift_codegen::{ir, settings, CodegenError, Context};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_native::builder_with_options;
@@ -48,9 +48,9 @@ impl SingleFunctionCompiler {
     }
 
     /// Build a [SingleFunctionCompiler] using the host machine's ISA and the passed flags.
-    pub fn with_host_isa(flags: settings::Flags, variant: BackendVariant) -> Self {
-        let builder = builder_with_options(variant, true)
-            .expect("Unable to build a TargetIsa for the current host");
+    pub fn with_host_isa(flags: settings::Flags) -> Self {
+        let builder =
+            builder_with_options(true).expect("Unable to build a TargetIsa for the current host");
         let isa = builder.finish(flags);
         Self::new(isa)
     }
@@ -59,7 +59,7 @@ impl SingleFunctionCompiler {
     /// ISA.
     pub fn with_default_host_isa() -> Self {
         let flags = settings::Flags::new(settings::builder());
-        Self::with_host_isa(flags, BackendVariant::Any)
+        Self::with_host_isa(flags)
     }
 
     /// Compile the passed [Function] to a `CompiledFunction`. This function will:

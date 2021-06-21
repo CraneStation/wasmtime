@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst
+target x86_64
 
 function %f(i32, i64 vmctx) -> i64 {
     gv0 = vmctx
@@ -17,6 +17,6 @@ block0(v0: i32, v1: i64):
     ; nextln: cmpl    %ecx, %eax
     ; nextln: jbe     label1; j label2
     ; check:  Block 1:
- 
+
     return v2
 }

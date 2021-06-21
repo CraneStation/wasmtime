@@ -7,11 +7,7 @@ mod srcgen;
 pub mod error;
 pub mod isa;
 
-mod gen_binemit;
-mod gen_encodings;
 mod gen_inst;
-mod gen_legalizer;
-mod gen_registers;
 mod gen_settings;
 mod gen_types;
 
@@ -57,42 +53,11 @@ pub fn generate(
         &out_dir,
     )?;
 
-    let extra_legalization_groups: &[&'static str] = if !new_backend_isas.is_empty() {
-        // The new backend only requires the "expand" legalization group.
-        &["expand"]
-    } else {
-        &[]
-    };
-
-    gen_legalizer::generate(
-        &target_isas,
-        &shared_defs.transform_groups,
-        extra_legalization_groups,
-        "legalize",
-        &out_dir,
-    )?;
-
     for isa in target_isas {
-        gen_registers::generate(&isa, &format!("registers-{}.rs", isa.name), &out_dir)?;
-
         gen_settings::generate(
             &isa.settings,
             gen_settings::ParentGroup::Shared,
             &format!("settings-{}.rs", isa.name),
-            &out_dir,
-        )?;
-
-        gen_encodings::generate(
-            &shared_defs,
-            &isa,
-            &format!("encoding-{}.rs", isa.name),
-            &out_dir,
-        )?;
-
-        gen_binemit::generate(
-            &isa.name,
-            &isa.recipes,
-            &format!("binemit-{}.rs", isa.name),
             &out_dir,
         )?;
     }
@@ -119,7 +84,7 @@ pub fn generate(
             isa::Isa::S390x => {
                 // s390x doesn't have platform-specific settings.
             }
-            isa::Isa::Arm32 | isa::Isa::Riscv => todo!(),
+            isa::Isa::Arm32 => todo!(),
         }
     }
 

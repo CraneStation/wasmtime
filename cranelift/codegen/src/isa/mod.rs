@@ -70,17 +70,6 @@ use core::fmt::{Debug, Formatter};
 use core::hash::Hasher;
 use target_lexicon::{triple, Architecture, OperatingSystem, PointerWidth, Triple};
 
-#[cfg(feature = "riscv")]
-mod riscv;
-
-// N.B.: the old x86-64 backend (`x86`) and the new one (`x64`) are both
-// included whenever building with x86 support. The new backend is the default,
-// but the old can be requested with `BackendVariant::Legacy`. However, if this
-// crate is built with the `old-x86-backend` feature, then the old backend is
-// default instead.
-#[cfg(feature = "x86")]
-mod x86;
-
 // This module is made public here for benchmarking purposes. No guarantees are
 // made regarding API stability.
 #[cfg(feature = "x86")]
@@ -122,49 +111,16 @@ macro_rules! isa_builder {
     }};
 }
 
-/// The "variant" for a given target. On one platform (x86-64), we have two
-/// backends, the "old" and "new" one; the new one is the default if included
-/// in the build configuration and not otherwise specified.
-#[derive(Clone, Copy, Debug)]
-pub enum BackendVariant {
-    /// Any backend available.
-    Any,
-    /// A "legacy" backend: one that operates using legalizations and encodings.
-    Legacy,
-    /// A backend built on `MachInst`s and the `VCode` framework.
-    MachInst,
-}
-
-impl Default for BackendVariant {
-    fn default() -> Self {
-        BackendVariant::Any
-    }
-}
-
 /// Look for an ISA for the given `triple`, selecting the backend variant given
 /// by `variant` if available.
-pub fn lookup_variant(triple: Triple, variant: BackendVariant) -> Result<Builder, LookupError> {
-    match (triple.architecture, variant) {
-        (Architecture::Riscv32 { .. }, _) | (Architecture::Riscv64 { .. }, _) => {
-            isa_builder!(riscv, (feature = "riscv"), triple)
-        }
-        (Architecture::X86_64, BackendVariant::Legacy) => {
-            isa_builder!(x86, (feature = "x86"), triple)
-        }
-        (Architecture::X86_64, BackendVariant::MachInst) => {
+pub fn lookup_variant(triple: Triple) -> Result<Builder, LookupError> {
+    match triple.architecture {
+        Architecture::X86_64 => {
             isa_builder!(x64, (feature = "x86"), triple)
         }
-        #[cfg(not(feature = "old-x86-backend"))]
-        (Architecture::X86_64, BackendVariant::Any) => {
-            isa_builder!(x64, (feature = "x86"), triple)
-        }
-        #[cfg(feature = "old-x86-backend")]
-        (Architecture::X86_64, BackendVariant::Any) => {
-            isa_builder!(x86, (feature = "x86"), triple)
-        }
-        (Architecture::Arm { .. }, _) => isa_builder!(arm32, (feature = "arm32"), triple),
-        (Architecture::Aarch64 { .. }, _) => isa_builder!(aarch64, (feature = "arm64"), triple),
-        (Architecture::S390x { .. }, _) => isa_builder!(s390x, (feature = "s390x"), triple),
+        Architecture::Arm { .. } => isa_builder!(arm32, (feature = "arm32"), triple),
+        Architecture::Aarch64 { .. } => isa_builder!(aarch64, (feature = "arm64"), triple),
+        Architecture::S390x { .. } => isa_builder!(s390x, (feature = "s390x"), triple),
         _ => Err(LookupError::Unsupported),
     }
 }
@@ -172,7 +128,7 @@ pub fn lookup_variant(triple: Triple, variant: BackendVariant) -> Result<Builder
 /// Look for an ISA for the given `triple`.
 /// Return a builder that can create a corresponding `TargetIsa`.
 pub fn lookup(triple: Triple) -> Result<Builder, LookupError> {
-    lookup_variant(triple, BackendVariant::Any)
+    lookup_variant(triple)
 }
 
 /// Look for a supported ISA with the given `name`.
@@ -293,11 +249,6 @@ pub trait TargetIsa: fmt::Display + Send + Sync {
 
     /// Get the ISA-dependent flag values that were used to make this trait object.
     fn isa_flags(&self) -> Vec<settings::Value>;
-
-    /// Get the variant of this ISA (Legacy or MachInst).
-    fn variant(&self) -> BackendVariant {
-        BackendVariant::Legacy
-    }
 
     /// Hashes all flags, both ISA-independent and ISA-specific, into the
     /// specified hasher.

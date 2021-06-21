@@ -1,6 +1,6 @@
 test compile
 set avoid_div_traps=false
-target x86_64 machinst
+target x86_64
 
 ;; We should get the checked-div/rem sequence (`srem` pseudoinst below) even
 ;; when `avoid_div_traps` above is false (i.e. even when the host is normally

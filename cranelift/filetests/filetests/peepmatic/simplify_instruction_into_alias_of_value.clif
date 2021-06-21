@@ -6,12 +6,15 @@ target x86_64
 ;; we need to make an alias `v3 -> v2`.
 
 function %replace_inst_with_alias() -> i32 {
+    sig0 = (i32, i32) -> i32, i32
+    fn0 = u0:0 sig0
+
 block0:
     v0 = iconst.i32 0
-    v1, v2 = x86_smulx v0, v0
+    v1, v2 = call fn0(v0, v0)
     v3 = isub v2, v0
     ; check:  v0 = iconst.i32 0
-    ; nextln: v1, v2 = x86_smulx v0, v0
+    ; nextln: v1, v2 = call fn0(v0, v0)
     ; nextln: v3 -> v2
     return v3
 }

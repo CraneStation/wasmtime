@@ -31,4 +31,3 @@ wat = "1.0"
 default = ["shuffling-allocator"]
 wasi-crypto = ["wasmtime-wasi-crypto"]
 wasi-nn = ["wasmtime-wasi-nn"]
-old-x86-backend = ["wasmtime/old-x86-backend"]

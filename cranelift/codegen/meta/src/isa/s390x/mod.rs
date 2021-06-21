@@ -1,8 +1,4 @@
-use crate::cdsl::cpu_modes::CpuMode;
-use crate::cdsl::instructions::{InstructionGroupBuilder, InstructionPredicateMap};
 use crate::cdsl::isa::TargetIsa;
-use crate::cdsl::recipes::Recipes;
-use crate::cdsl::regs::IsaRegsBuilder;
 use crate::cdsl::settings::{SettingGroup, SettingGroupBuilder};
 
 use crate::shared::Definitions as SharedDefinitions;
@@ -45,24 +41,7 @@ fn define_settings(_shared: &SettingGroup) -> SettingGroup {
 }
 
 pub(crate) fn define(shared_defs: &mut SharedDefinitions) -> TargetIsa {
-    let inst_group = InstructionGroupBuilder::new(&mut shared_defs.all_instructions).build();
     let settings = define_settings(&shared_defs.settings);
-    let regs = IsaRegsBuilder::new().build();
-    let recipes = Recipes::new();
-    let encodings_predicates = InstructionPredicateMap::new();
 
-    let mut mode = CpuMode::new("s390x");
-    let expand = shared_defs.transform_groups.by_name("expand");
-    mode.legalize_default(expand);
-    let cpu_modes = vec![mode];
-
-    TargetIsa::new(
-        "s390x",
-        inst_group,
-        settings,
-        regs,
-        recipes,
-        cpu_modes,
-        encodings_predicates,
-    )
+    TargetIsa::new("s390x", settings)
 }

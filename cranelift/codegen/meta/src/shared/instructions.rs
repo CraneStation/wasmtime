@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::cdsl::instructions::{
-    AllInstructions, InstructionBuilder as Inst, InstructionGroup, InstructionGroupBuilder,
+    AllInstructions, InstructionBuilder as Inst, InstructionGroupBuilder,
 };
 use crate::cdsl::operands::Operand;
 use crate::cdsl::type_inference::Constraint::WiderOrEq;
@@ -767,7 +767,7 @@ pub(crate) fn define(
     formats: &Formats,
     imm: &Immediates,
     entities: &EntityRefs,
-) -> InstructionGroup {
+) {
     let mut ig = InstructionGroupBuilder::new(all_instructions);
 
     define_control_flow(&mut ig, formats, imm, entities);
@@ -4576,6 +4576,4 @@ pub(crate) fn define(
         )
         .other_side_effects(true),
     );
-
-    ig.build()
 }

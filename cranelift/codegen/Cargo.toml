@@ -63,7 +63,6 @@ unwind = ["gimli"]
 # If no ISA targets are explicitly enabled, the ISA target for the host machine is enabled.
 x86 = []
 arm64 = []
-riscv = []
 s390x = []
 arm32 = [] # Work-in-progress codegen backend for ARM.
 
@@ -71,14 +70,10 @@ arm32 = [] # Work-in-progress codegen backend for ARM.
 # backend is the default now.
 experimental_x64 = []
 
-# Make the old x86 backend the default.
-old-x86-backend = []
-
 # Option to enable all architectures.
 all-arch = [
     "x86",
     "arm64",
-    "riscv",
     "s390x"
 ]
 

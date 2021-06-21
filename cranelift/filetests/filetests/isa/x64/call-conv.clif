@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst
+target x86_64
 
 ;; system_v has first param in %rdi, fascall in %rcx
 function %one_arg(i32) system_v {

@@ -1,6 +1,6 @@
 test compile
 set enable_llvm_abi_extensions=true
-target x86_64 machinst
+target x86_64
 
 function %f0(i32, i128, i128) -> i128 {
 ; check:   pushq   %rbp
@@ -24,6 +24,6 @@ block0(v0: i32, v1: i128, v2: i128):
 ; nextln: movq    %rbp, %rsp
 ; nextln: popq    %rbp
 ; nextln: ret
- 
+
 }
 

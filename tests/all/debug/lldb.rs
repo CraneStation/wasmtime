@@ -141,7 +141,7 @@ check: exited with status
     // Ignore test on new backend. The value this is looking for is
     // not available at the point that the breakpoint is set when
     // compiled by the new backend.
-    feature = "old-x86-backend",
+    feature = "old-x86-backend", // TODO
 ))]
 pub fn test_debug_dwarf_ptr() -> Result<()> {
     let output = lldb_with_script(

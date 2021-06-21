@@ -1,6 +1,5 @@
 //! Windows x64 ABI unwind information.
 
-use crate::isa::unwind::input;
 use crate::result::{CodegenError, CodegenResult};
 use alloc::vec::Vec;
 use log::warn;
@@ -258,76 +257,6 @@ impl UnwindInfo {
         self.unwind_codes
             .iter()
             .fold(0, |nodes, c| nodes + c.node_count())
-    }
-
-    // TODO: remove `build()` below when old backend is removed. The new backend uses
-    // a simpler approach in `create_unwind_info_from_insts()` below.
-
-    pub(crate) fn build<Reg: PartialEq + Copy + std::fmt::Debug, MR: RegisterMapper<Reg>>(
-        unwind: input::UnwindInfo<Reg>,
-    ) -> CodegenResult<Self> {
-        use crate::isa::unwind::input::UnwindCode as InputUnwindCode;
-
-        let word_size: u32 = unwind.word_size.into();
-        let mut unwind_codes = Vec::new();
-        for (offset, c) in unwind.prologue_unwind_codes.iter() {
-            match c {
-                InputUnwindCode::SaveRegister { reg, stack_offset } => {
-                    let reg = MR::map(*reg);
-                    let offset = ensure_unwind_offset(*offset)?;
-                    match reg {
-                        MappedRegister::Int(reg) => {
-                            // Attempt to convert sequence of the `InputUnwindCode`:
-                            // `StackAlloc { size = word_size }`, `SaveRegister { stack_offset: 0 }`
-                            // to the shorter `UnwindCode::PushRegister`.
-                            let push_reg_sequence = if let Some(UnwindCode::StackAlloc {
-                                instruction_offset: alloc_offset,
-                                size,
-                            }) = unwind_codes.last()
-                            {
-                                *size == word_size && offset == *alloc_offset && *stack_offset == 0
-                            } else {
-                                false
-                            };
-                            if push_reg_sequence {
-                                *unwind_codes.last_mut().unwrap() = UnwindCode::PushRegister {
-                                    instruction_offset: offset,
-                                    reg,
-                                };
-                            } else {
-                                unwind_codes.push(UnwindCode::SaveReg {
-                                    instruction_offset: offset,
-                                    reg,
-                                    stack_offset: *stack_offset,
-                                });
-                            }
-                        }
-                        MappedRegister::Xmm(reg) => {
-                            unwind_codes.push(UnwindCode::SaveXmm {
-                                instruction_offset: offset,
-                                reg,
-                                stack_offset: *stack_offset,
-                            });
-                        }
-                    }
-                }
-                InputUnwindCode::StackAlloc { size } => {
-                    unwind_codes.push(UnwindCode::StackAlloc {
-                        instruction_offset: ensure_unwind_offset(*offset)?,
-                        size: *size,
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        Ok(Self {
-            flags: 0, // this assumes cranelift functions have no SEH handlers
-            prologue_size: ensure_unwind_offset(unwind.prologue_size)?,
-            frame_register: None,
-            frame_register_offset: 0,
-            unwind_codes,
-        })
     }
 }
 

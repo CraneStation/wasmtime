@@ -1,6 +1,6 @@
 test compile
 set enable_simd
-target x86_64 machinst skylake
+target x86_64 skylake
 
 function %bitselect_i16x8() -> i16x8 {
 block0:

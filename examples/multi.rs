@@ -9,7 +9,6 @@
 
 use anyhow::Result;
 
-#[cfg(not(feature = "old-x86-backend"))]
 fn main() -> Result<()> {
     use wasmtime::*;
 
@@ -61,13 +60,5 @@ fn main() -> Result<()> {
     println!("> {:?}", results);
     assert_eq!(results, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
 
-    Ok(())
-}
-
-// Note that this example is not supported in the off-by-default feature of the
-// old x86 compiler backend for Cranelift. Wasmtime's default configuration
-// supports this example, however.
-#[cfg(feature = "old-x86-backend")]
-fn main() -> Result<()> {
     Ok(())
 }

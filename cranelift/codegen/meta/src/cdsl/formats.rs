@@ -70,18 +70,6 @@ impl fmt::Display for InstructionFormat {
 }
 
 impl InstructionFormat {
-    pub fn imm_by_name(&self, name: &'static str) -> &FormatField {
-        self.imm_fields
-            .iter()
-            .find(|&field| field.member == name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "unexpected immediate field named {} in instruction format {}",
-                    name, self.name
-                )
-            })
-    }
-
     /// Returns a tuple that uniquely identifies the structure.
     pub fn structure(&self) -> FormatStructure {
         FormatStructure {

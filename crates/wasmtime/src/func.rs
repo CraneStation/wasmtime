@@ -997,9 +997,7 @@ impl Func {
     /// and similarly if a function has multiple results you can bind that too
     ///
     /// ```
-    /// # #[cfg(not(feature = "old-x86-backend"))]
     /// # use wasmtime::*;
-    /// # #[cfg(not(feature = "old-x86-backend"))]
     /// # fn foo(add_with_overflow: &Func, mut store: Store<()>) -> anyhow::Result<()> {
     /// let typed = add_with_overflow.typed::<(u32, u32), (u32, i32), _>(&store)?;
     /// let (result, overflow) = typed.call(&mut store, (u32::max_value(), 2))?;
@@ -1395,12 +1393,10 @@ macro_rules! impl_host_abi {
         #[doc(hidden)]
         #[allow(non_snake_case)]
         #[repr(C)]
-        #[cfg(not(feature = "old-x86-backend"))]
         pub struct [<TupleRet $n>]<$($u,)*> {
             $($u: $u,)*
         }
 
-        #[cfg(not(feature = "old-x86-backend"))]
         #[allow(non_snake_case, unused_assignments)]
         impl<$t: Copy, $($u: Copy,)*> HostAbi for ($t, $($u,)*) {
             type Abi = $t;

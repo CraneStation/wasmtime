@@ -58,8 +58,6 @@ pub enum Reloc {
     /// value is sign-extended, multiplied by 4, and added to the PC of
     /// the call instruction to form the destination address.
     Arm64Call,
-    /// RISC-V call target
-    RiscvCall,
     /// s390x PC-relative 4-byte offset
     S390xPCRel32Dbl,
 
@@ -83,7 +81,7 @@ impl fmt::Display for Reloc {
             Self::X86CallPCRel4 => write!(f, "CallPCRel4"),
             Self::X86CallPLTRel4 => write!(f, "CallPLTRel4"),
             Self::X86GOTPCRel4 => write!(f, "GOTPCRel4"),
-            Self::Arm32Call | Self::Arm64Call | Self::RiscvCall => write!(f, "Call"),
+            Self::Arm32Call | Self::Arm64Call => write!(f, "Call"),
 
             Self::ElfX86_64TlsGd => write!(f, "ElfX86_64TlsGd"),
             Self::MachOX86_64Tlv => write!(f, "MachOX86_64Tlv"),

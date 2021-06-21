@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst has_bmi1
+target x86_64 has_bmi1
 
 function %ctz(i64) -> i64 {
 block0(v0: i64):

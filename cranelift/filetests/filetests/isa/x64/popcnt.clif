@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst
+target x86_64
 
 function %popcnt64(i64) -> i64 {
 block0(v0: i64):

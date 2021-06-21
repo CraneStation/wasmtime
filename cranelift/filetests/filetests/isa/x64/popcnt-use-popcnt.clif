@@ -1,5 +1,5 @@
 test compile
-target x86_64 machinst has_popcnt has_sse42
+target x86_64 has_popcnt has_sse42
 
 function %popcnt(i64) -> i64 {
 block0(v0: i64):

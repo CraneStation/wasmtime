@@ -70,9 +70,6 @@ parallel-compilation = ["wasmtime-jit/parallel-compilation"]
 # Enables support for automatic cache configuration to be enabled in `Config`.
 cache = ["wasmtime-cache"]
 
-# Use the old x86 backend.
-old-x86-backend = ["wasmtime-jit/old-x86-backend"]
-
 # Enables support for "async stores" as well as defining host functions as
 # `async fn` and calling functions asynchronously.
 async = ["wasmtime-fiber", "wasmtime-runtime/async"]

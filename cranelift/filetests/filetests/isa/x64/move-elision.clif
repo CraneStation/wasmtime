@@ -1,6 +1,6 @@
 test compile
 set enable_simd
-target x86_64 machinst skylake
+target x86_64 skylake
 
 function %move_registers(i32x4) -> b8x16 {
 block0(v0: i32x4):

@@ -7,8 +7,7 @@ pub fn builder() -> cranelift_codegen::isa::Builder {
 }
 
 pub fn builder_without_flags() -> cranelift_codegen::isa::Builder {
-    cranelift_native::builder_with_options(cranelift_codegen::isa::BackendVariant::Any, false)
-        .expect("host machine is not a supported target")
+    cranelift_native::builder_with_options(false).expect("host machine is not a supported target")
 }
 
 pub use cranelift_codegen::isa::lookup;
