@@ -6,7 +6,6 @@
 #[macro_use]
 pub mod ast;
 pub mod cpu_modes;
-pub mod encodings;
 pub mod formats;
 pub mod instructions;
 pub mod isa;

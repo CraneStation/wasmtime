@@ -89,11 +89,4 @@ impl TargetIsa {
     pub fn direct_transform_groups(&self) -> &Vec<TransformGroupIndex> {
         &self.local_transform_groups
     }
-
-    pub fn translate_group_index(&self, group_index: TransformGroupIndex) -> usize {
-        self.local_transform_groups
-            .iter()
-            .position(|&val| val == group_index)
-            .expect("TransformGroup unused by this TargetIsa!")
-    }
 }

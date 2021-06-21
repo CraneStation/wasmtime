@@ -7,8 +7,6 @@ mod srcgen;
 pub mod error;
 pub mod isa;
 
-mod gen_binemit;
-mod gen_encodings;
 mod gen_inst;
 mod gen_legalizer;
 mod gen_registers;
@@ -79,20 +77,6 @@ pub fn generate(
             &isa.settings,
             gen_settings::ParentGroup::Shared,
             &format!("settings-{}.rs", isa.name),
-            &out_dir,
-        )?;
-
-        gen_encodings::generate(
-            &shared_defs,
-            &isa,
-            &format!("encoding-{}.rs", isa.name),
-            &out_dir,
-        )?;
-
-        gen_binemit::generate(
-            &isa.name,
-            &isa.recipes,
-            &format!("binemit-{}.rs", isa.name),
             &out_dir,
         )?;
     }

@@ -745,12 +745,6 @@ impl FormatPredicateNode {
         }
     }
 
-    fn destructuring_member_name(&self) -> &'static str {
-        match &self.kind {
-            _ => self.member_name,
-        }
-    }
-
     fn rust_predicate(&self) -> String {
         match &self.kind {
             FormatPredicateKind::IsEqual(arg) => {
@@ -807,44 +801,6 @@ impl InstructionPredicateNode {
                 .collect::<Vec<_>>()
                 .join(" && "),
         }
-    }
-
-    pub fn format_destructuring_member_name(&self) -> &str {
-        match self {
-            InstructionPredicateNode::FormatPredicate(format_pred) => {
-                format_pred.destructuring_member_name()
-            }
-            _ => panic!("Only for leaf format predicates"),
-        }
-    }
-
-    pub fn format_name(&self) -> &str {
-        match self {
-            InstructionPredicateNode::FormatPredicate(format_pred) => format_pred.format_name,
-            _ => panic!("Only for leaf format predicates"),
-        }
-    }
-
-    pub fn is_type_predicate(&self) -> bool {
-        match self {
-            InstructionPredicateNode::FormatPredicate(_) | InstructionPredicateNode::And(_) => {
-                false
-            }
-            InstructionPredicateNode::TypePredicate(_) => true,
-        }
-    }
-
-    fn collect_leaves(&self) -> Vec<&InstructionPredicateNode> {
-        let mut ret = Vec::new();
-        match self {
-            InstructionPredicateNode::And(nodes) => {
-                for node in nodes {
-                    ret.extend(node.collect_leaves());
-                }
-            }
-            _ => ret.push(self),
-        }
-        ret
     }
 }
 
@@ -917,22 +873,6 @@ impl InstructionPredicate {
 
     pub fn rust_predicate(&self, func_str: &str) -> Option<String> {
         self.node.as_ref().map(|root| root.rust_predicate(func_str))
-    }
-
-    /// Returns the type predicate if this is one, or None otherwise.
-    pub fn type_predicate(&self, func_str: &str) -> Option<String> {
-        let node = self.node.as_ref().unwrap();
-        if node.is_type_predicate() {
-            Some(node.rust_predicate(func_str))
-        } else {
-            None
-        }
-    }
-
-    /// Returns references to all the nodes that are leaves in the condition (i.e. by flattening
-    /// AND/OR).
-    pub fn collect_leaves(&self) -> Vec<&InstructionPredicateNode> {
-        self.node.as_ref().unwrap().collect_leaves()
     }
 }
 

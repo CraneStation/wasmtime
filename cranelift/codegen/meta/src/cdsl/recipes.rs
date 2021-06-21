@@ -32,13 +32,6 @@ pub(crate) struct Stack {
     pub regclass: RegClassIndex,
 }
 
-impl Stack {
-    pub fn stack_base_mask(self) -> &'static str {
-        // TODO: Make this configurable instead of just using the SP.
-        "StackBaseMask(1)"
-    }
-}
-
 #[derive(Clone, Hash, PartialEq)]
 pub(crate) struct BranchRange {
     pub inst_size: u64,
