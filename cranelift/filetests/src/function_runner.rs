@@ -49,8 +49,8 @@ impl SingleFunctionCompiler {
 
     /// Build a [SingleFunctionCompiler] using the host machine's ISA and the passed flags.
     pub fn with_host_isa(flags: settings::Flags) -> Self {
-        let builder = builder_with_options(true)
-            .expect("Unable to build a TargetIsa for the current host");
+        let builder =
+            builder_with_options(true).expect("Unable to build a TargetIsa for the current host");
         let isa = builder.finish(flags);
         Self::new(isa)
     }

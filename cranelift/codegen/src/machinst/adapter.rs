@@ -2,9 +2,7 @@
 
 use crate::binemit;
 use crate::ir;
-use crate::isa::{
-    EncInfo, Encoding, Encodings, Legalize, RegClass, RegInfo, TargetIsa,
-};
+use crate::isa::{EncInfo, Encoding, Encodings, Legalize, RegClass, RegInfo, TargetIsa};
 use crate::machinst::*;
 use crate::regalloc::RegisterSet;
 use crate::settings::{self, Flags};

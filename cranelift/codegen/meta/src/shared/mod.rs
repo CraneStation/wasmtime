@@ -8,7 +8,7 @@ pub mod settings;
 pub mod types;
 
 use crate::cdsl::formats::{FormatStructure, InstructionFormat};
-use crate::cdsl::instructions::{AllInstructions};
+use crate::cdsl::instructions::AllInstructions;
 use crate::cdsl::settings::SettingGroup;
 
 use crate::shared::entities::EntityRefs;

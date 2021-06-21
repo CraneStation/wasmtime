@@ -25,9 +25,7 @@ pub(crate) struct InstructionGroupBuilder<'all_inst> {
 
 impl<'all_inst> InstructionGroupBuilder<'all_inst> {
     pub fn new(all_instructions: &'all_inst mut AllInstructions) -> Self {
-        Self {
-            all_instructions,
-        }
+        Self { all_instructions }
     }
 
     pub fn push(&mut self, builder: InstructionBuilder) {
@@ -449,13 +447,9 @@ impl Bindable for BoundInstruction {
     fn bind(&self, parameter: impl Into<BindParameter>) -> BoundInstruction {
         let mut modified = self.clone();
         match parameter.into() {
-            BindParameter::Lane(lane_type) => modified
-                .value_types
-                .push(lane_type.into()),
+            BindParameter::Lane(lane_type) => modified.value_types.push(lane_type.into()),
             BindParameter::Reference(reference_type) => {
-                modified
-                    .value_types
-                    .push(reference_type.into());
+                modified.value_types.push(reference_type.into());
             }
         }
         modified.verify_bindings().unwrap();

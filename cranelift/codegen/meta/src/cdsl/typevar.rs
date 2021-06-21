@@ -895,7 +895,6 @@ fn test_forward_images() {
     );
 }
 
-
 #[test]
 #[should_panic]
 fn test_typeset_singleton_panic_nonsingleton_types() {
