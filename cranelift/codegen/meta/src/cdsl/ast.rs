@@ -456,7 +456,7 @@ impl Apply {
         // Apply should only operate on concrete value types, not "any".
         let value_types = value_types
             .into_iter()
-            .map(|vt| vt.expect("shouldn't be Any"))
+            .map(|vt| vt.expect())
             .collect();
 
         // Basic check on number of arguments.
@@ -634,10 +634,6 @@ impl Into<DummyExpr> for Literal {
 
 #[derive(Clone)]
 pub(crate) struct DummyConstant(pub(crate) Vec<u8>);
-
-pub(crate) fn constant(data: Vec<u8>) -> DummyConstant {
-    DummyConstant(data)
-}
 
 impl Into<DummyExpr> for DummyConstant {
     fn into(self) -> DummyExpr {

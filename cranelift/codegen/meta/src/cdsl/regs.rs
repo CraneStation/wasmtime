@@ -39,37 +39,6 @@ impl RegBank {
             classes: Vec::new(),
         }
     }
-
-    fn unit_by_name(&self, name: &'static str) -> u8 {
-        let unit = if let Some(found) = self.names.iter().position(|&reg_name| reg_name == name) {
-            found
-        } else {
-            // Try to match without the bank prefix.
-            assert!(name.starts_with(self.prefix));
-            let name_without_prefix = &name[self.prefix.len()..];
-            if let Some(found) = self
-                .names
-                .iter()
-                .position(|&reg_name| reg_name == name_without_prefix)
-            {
-                found
-            } else {
-                // Ultimate try: try to parse a number and use this in the array, eg r15 on x86.
-                if let Ok(as_num) = name_without_prefix.parse::<u8>() {
-                    assert!(
-                        as_num < self.units,
-                        "trying to get {}, but bank only has {} registers!",
-                        name,
-                        self.units
-                    );
-                    as_num as usize
-                } else {
-                    panic!("invalid register name {}", name);
-                }
-            }
-        };
-        self.first_unit + (unit as u8)
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -132,7 +101,6 @@ impl RegClass {
 
 pub(crate) enum RegClassProto {
     TopLevel(RegBankIndex),
-    SubClass(RegClassIndex),
 }
 
 pub(crate) struct RegClassBuilder {
@@ -153,21 +121,6 @@ impl RegClassBuilder {
             proto: RegClassProto::TopLevel(bank),
         }
     }
-    pub fn subclass_of(
-        name: &'static str,
-        parent_index: RegClassIndex,
-        start: u8,
-        stop: u8,
-    ) -> Self {
-        assert!(stop >= start);
-        Self {
-            name,
-            width: 0,
-            count: stop - start,
-            start,
-            proto: RegClassProto::SubClass(parent_index),
-        }
-    }
     pub fn count(mut self, count: u8) -> Self {
         self.count = count;
         self
@@ -175,7 +128,6 @@ impl RegClassBuilder {
     pub fn width(mut self, width: u8) -> Self {
         match self.proto {
             RegClassProto::TopLevel(_) => self.width = width,
-            RegClassProto::SubClass(_) => panic!("Subclasses inherit their parent's width."),
         }
         self
     }
@@ -211,11 +163,6 @@ impl RegBankBuilder {
     }
     pub fn track_pressure(mut self, track: bool) -> Self {
         self.pressure_tracking = Some(track);
-        self
-    }
-    pub fn pinned_reg(mut self, unit: u16) -> Self {
-        assert!(unit < u16::from(self.units));
-        self.pinned_reg = Some(unit);
         self
     }
 }
@@ -273,20 +220,6 @@ impl IsaRegsBuilder {
                     .toprcs
                     .push(class_index);
                 (bank_index, class_index, builder.start, builder.width)
-            }
-            RegClassProto::SubClass(parent_class_index) => {
-                assert!(builder.width == 0);
-                let (bank, toprc, start, width) = {
-                    let parent = self.classes.get(parent_class_index).unwrap();
-                    (parent.bank, parent.toprc, parent.start, parent.width)
-                };
-                for reg_class in self.classes.values_mut() {
-                    if reg_class.toprc == toprc {
-                        reg_class.subclasses.push(class_index);
-                    }
-                }
-                let subclass_start = start + builder.start * width;
-                (bank, toprc, subclass_start, width)
             }
         };
 
@@ -395,18 +328,5 @@ impl IsaRegs {
         classes: PrimaryMap<RegClassIndex, RegClass>,
     ) -> Self {
         Self { banks, classes }
-    }
-
-    pub fn class_by_name(&self, name: &str) -> RegClassIndex {
-        self.classes
-            .values()
-            .find(|&class| class.name == name)
-            .unwrap_or_else(|| panic!("register class {} not found", name))
-            .index
-    }
-
-    pub fn regunit_by_name(&self, class_index: RegClassIndex, name: &'static str) -> u8 {
-        let bank_index = self.classes.get(class_index).unwrap().bank;
-        self.banks.get(bank_index).unwrap().unit_by_name(name)
     }
 }

@@ -23,12 +23,6 @@ pub(crate) struct Register {
     pub unit: u8,
 }
 
-impl Register {
-    pub fn new(regclass: RegClassIndex, unit: u8) -> Self {
-        Self { regclass, unit }
-    }
-}
-
 /// An operand that must be in a stack slot.
 ///
 /// A `Stack` object can be used to indicate an operand constraint for a value
@@ -39,9 +33,6 @@ pub(crate) struct Stack {
 }
 
 impl Stack {
-    pub fn new(regclass: RegClassIndex) -> Self {
-        Self { regclass }
-    }
     pub fn stack_base_mask(self) -> &'static str {
         // TODO: Make this configurable instead of just using the SP.
         "StackBaseMask(1)"
@@ -178,120 +169,4 @@ pub(crate) struct EncodingRecipeBuilder {
     clobbers_flags: Option<bool>,
     inst_predicate: Option<InstructionPredicate>,
     isa_predicate: Option<SettingPredicateNumber>,
-}
-
-impl EncodingRecipeBuilder {
-    pub fn new(name: impl Into<String>, format: &Rc<InstructionFormat>, base_size: u64) -> Self {
-        Self {
-            name: name.into(),
-            format: format.clone(),
-            base_size,
-            operands_in: None,
-            operands_out: None,
-            compute_size: None,
-            branch_range: None,
-            emit: None,
-            clobbers_flags: None,
-            inst_predicate: None,
-            isa_predicate: None,
-        }
-    }
-
-    // Setters.
-    pub fn operands_in(mut self, constraints: Vec<impl Into<OperandConstraint>>) -> Self {
-        assert!(self.operands_in.is_none());
-        self.operands_in = Some(
-            constraints
-                .into_iter()
-                .map(|constr| constr.into())
-                .collect(),
-        );
-        self
-    }
-    pub fn operands_out(mut self, constraints: Vec<impl Into<OperandConstraint>>) -> Self {
-        assert!(self.operands_out.is_none());
-        self.operands_out = Some(
-            constraints
-                .into_iter()
-                .map(|constr| constr.into())
-                .collect(),
-        );
-        self
-    }
-    pub fn clobbers_flags(mut self, flag: bool) -> Self {
-        assert!(self.clobbers_flags.is_none());
-        self.clobbers_flags = Some(flag);
-        self
-    }
-    pub fn emit(mut self, code: impl Into<String>) -> Self {
-        assert!(self.emit.is_none());
-        self.emit = Some(code.into());
-        self
-    }
-    pub fn branch_range(mut self, range: (u64, u64)) -> Self {
-        assert!(self.branch_range.is_none());
-        self.branch_range = Some(BranchRange {
-            inst_size: range.0,
-            range: range.1,
-        });
-        self
-    }
-    pub fn isa_predicate(mut self, pred: SettingPredicateNumber) -> Self {
-        assert!(self.isa_predicate.is_none());
-        self.isa_predicate = Some(pred);
-        self
-    }
-    pub fn inst_predicate(mut self, inst_predicate: impl Into<InstructionPredicate>) -> Self {
-        assert!(self.inst_predicate.is_none());
-        self.inst_predicate = Some(inst_predicate.into());
-        self
-    }
-    pub fn compute_size(mut self, compute_size: &'static str) -> Self {
-        assert!(self.compute_size.is_none());
-        self.compute_size = Some(compute_size);
-        self
-    }
-
-    pub fn build(self) -> EncodingRecipe {
-        let operands_in = self.operands_in.unwrap_or_default();
-        let operands_out = self.operands_out.unwrap_or_default();
-
-        // The number of input constraints must match the number of format input operands.
-        if !self.format.has_value_list {
-            assert!(
-                operands_in.len() == self.format.num_value_operands,
-                "missing operand constraints for recipe {} (format {})",
-                self.name,
-                self.format.name
-            );
-        }
-
-        // Ensure tied inputs actually refer to existing inputs.
-        for constraint in operands_in.iter().chain(operands_out.iter()) {
-            if let OperandConstraint::TiedInput(n) = *constraint {
-                assert!(n < operands_in.len());
-            }
-        }
-
-        let compute_size = match self.compute_size {
-            Some(compute_size) => compute_size,
-            None => "base_size",
-        };
-
-        let clobbers_flags = self.clobbers_flags.unwrap_or(true);
-
-        EncodingRecipe {
-            name: self.name,
-            format: self.format,
-            base_size: self.base_size,
-            operands_in,
-            operands_out,
-            compute_size,
-            branch_range: self.branch_range,
-            clobbers_flags,
-            inst_predicate: self.inst_predicate,
-            isa_predicate: self.isa_predicate,
-            emit: self.emit,
-        }
-    }
 }

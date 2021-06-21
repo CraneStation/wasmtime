@@ -384,12 +384,6 @@ impl TransformGroupBuilder {
         self
     }
 
-    pub fn isa(mut self, isa_name: &'static str) -> Self {
-        assert!(self.isa_name.is_none());
-        self.isa_name = Some(isa_name);
-        self
-    }
-
     /// Add a custom legalization action for `inst`.
     ///
     /// The `func_name` parameter is the fully qualified name of a Rust function which takes the

@@ -2,8 +2,8 @@ use std::collections::{hash_map, HashMap, HashSet};
 use std::iter::FromIterator;
 
 use crate::cdsl::encodings::Encoding;
-use crate::cdsl::types::{LaneType, ValueType};
-use crate::cdsl::xform::{TransformGroup, TransformGroupIndex};
+use crate::cdsl::types::ValueType;
+use crate::cdsl::xform::TransformGroupIndex;
 
 pub(crate) struct CpuMode {
     pub name: &'static str,
@@ -14,42 +14,6 @@ pub(crate) struct CpuMode {
 }
 
 impl CpuMode {
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            default_legalize: None,
-            monomorphic_legalize: None,
-            typed_legalize: HashMap::new(),
-            encodings: Vec::new(),
-        }
-    }
-
-    pub fn set_encodings(&mut self, encodings: Vec<Encoding>) {
-        assert!(self.encodings.is_empty(), "clobbering encodings");
-        self.encodings = encodings;
-    }
-
-    pub fn legalize_monomorphic(&mut self, group: &TransformGroup) {
-        assert!(self.monomorphic_legalize.is_none());
-        self.monomorphic_legalize = Some(group.id);
-    }
-    pub fn legalize_default(&mut self, group: &TransformGroup) {
-        assert!(self.default_legalize.is_none());
-        self.default_legalize = Some(group.id);
-    }
-    pub fn legalize_value_type(&mut self, lane_type: impl Into<ValueType>, group: &TransformGroup) {
-        assert!(self
-            .typed_legalize
-            .insert(lane_type.into(), group.id)
-            .is_none());
-    }
-    pub fn legalize_type(&mut self, lane_type: impl Into<LaneType>, group: &TransformGroup) {
-        assert!(self
-            .typed_legalize
-            .insert(lane_type.into().into(), group.id)
-            .is_none());
-    }
-
     pub fn get_default_legalize_code(&self) -> TransformGroupIndex {
         self.default_legalize
             .expect("a finished CpuMode must have a default legalize code")
