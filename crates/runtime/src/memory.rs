@@ -95,7 +95,7 @@ impl MmapMemory {
         let accessible_bytes = mapped_pages * WASM_PAGE_SIZE as usize;
 
         let mut mmap = WasmMmap {
-            alloc: Mmap::accessible_reserved(0, request_bytes)?,
+            alloc: Mmap::accessible_reserved(0, request_bytes, /* is_stack = */ false)?,
             size: plan.memory.minimum,
         };
         if accessible_bytes > 0 {
@@ -172,7 +172,8 @@ impl RuntimeLinearMemory for MmapMemory {
                 .checked_add(new_bytes)?
                 .checked_add(self.offset_guard_size)?;
 
-            let mut new_mmap = Mmap::accessible_reserved(0, request_bytes).ok()?;
+            let mut new_mmap =
+                Mmap::accessible_reserved(0, request_bytes, /* is_stack = */ false).ok()?;
             new_mmap
                 .make_accessible(self.pre_guard_size, new_bytes)
                 .ok()?;

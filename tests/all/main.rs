@@ -24,6 +24,7 @@ mod module_linking;
 mod module_serialize;
 mod name;
 mod native_hooks;
+#[cfg(not(target_os = "openbsd"))]
 mod pooling_allocator;
 mod stack_overflow;
 mod store;
@@ -55,5 +56,5 @@ pub(crate) fn skip_pooling_allocator_tests() -> bool {
     // There are a couple of issues when running the pooling allocator tests under QEMU:
     // - high memory usage that may exceed the limits imposed by the environment (e.g. CI)
     // - https://github.com/bytecodealliance/wasmtime/pull/2518#issuecomment-747280133
-    std::env::var("WASMTIME_TEST_NO_HOG_MEMORY").is_ok()
+    std::env::var("WASMTIME_TEST_NO_HOG_MEMORY").is_ok() || cfg!(target_os = "openbsd")
 }

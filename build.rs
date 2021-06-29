@@ -158,7 +158,10 @@ fn write_testsuite_tests(
     if x64_should_panic(testsuite, &testname, strategy) {
         writeln!(out, r#"#[should_panic]"#)?;
     // Ignore when using QEMU for running tests (limited memory).
-    } else if ignore(testsuite, &testname, strategy) || (pooling && platform_is_emulated()) {
+    } else if ignore(testsuite, &testname, strategy)
+        || (pooling && platform_is_emulated())
+        || (pooling && cfg!(target_os = "openbsd"))
+    {
         writeln!(out, "#[ignore]")?;
     }
 

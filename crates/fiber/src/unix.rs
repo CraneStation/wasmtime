@@ -74,22 +74,18 @@ unsafe fn mmap_new_stack(size: usize, page_size: usize) -> io::Result<(*mut u8, 
 
 /// Maps a new stack with a guard page. Returns (top, len).
 #[cfg(target_os = "openbsd")]
-unsafe fn mmap_new_stack(size: usize, page_size: usize) -> io::Result<(*mut u8, usize)> {
+unsafe fn mmap_new_stack(size: usize, _page_size: usize) -> io::Result<(*mut u8, usize)> {
     // On OpenBSD, we need to use MAP_STACK to specify that a page can contain a
     // stack; otherwise, we will get a SIGSEGV when it is used as such.
     //
-    // Note also that MAP_STACK must be specified with PROT_READ|PROT_WRITE, and
+    // Note that MAP_STACK must be specified with PROT_READ|PROT_WRITE, and
     // must be specified without a fixed location (see
-    // /usr/src/sys/uvm/uvm_mmap.c:sys_mmap() flag validation), so we cannot do
-    // the mmap/mprotect trick as above to get a guard page and we cannot
-    // munmap/mmap to set MAP_STACK in a fixed location. Instead, we need to (i)
-    // do a mmap to get the stack at the kernel's choice of location, and then
-    // (ii) mprotect the lowest page to get a guard page.
+    // /usr/src/sys/uvm/uvm_mmap.c:sys_mmap() flag validation), and
+    // also takes care of the guard page for us, so this is simpler than above.
 
     const MAP_STACK: libc::c_int = 0x4000; // from <sys/mman.h>, not in `libc`.
 
-    // Add in one page for a guard page and then ask for some memory.
-    let mmap_len = size + page_size;
+    let mmap_len = size;
     let mmap = libc::mmap(
         ptr::null_mut(),
         mmap_len,
@@ -98,11 +94,8 @@ unsafe fn mmap_new_stack(size: usize, page_size: usize) -> io::Result<(*mut u8, 
         -1,
         0,
     );
-    if mmap == libc::MAP_FAILED {
-        return Err(io::Error::last_os_error());
-    }
 
-    if libc::mprotect(mmap, page_size, libc::PROT_NONE) != 0 {
+    if mmap == libc::MAP_FAILED {
         return Err(io::Error::last_os_error());
     }
 

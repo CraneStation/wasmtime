@@ -1,6 +1,7 @@
 //! Low-level abstraction for allocating and managing zero-filled pages
 //! of memory.
 
+use crate::STACK_MMAP_FLAGS;
 use anyhow::{bail, Result};
 use more_asserts::assert_le;
 use std::io;
@@ -41,14 +42,18 @@ impl Mmap {
     pub fn with_at_least(size: usize) -> Result<Self> {
         let page_size = region::page::size();
         let rounded_size = round_up_to_page_size(size, page_size);
-        Self::accessible_reserved(rounded_size, rounded_size)
+        Self::accessible_reserved(rounded_size, rounded_size, /* is_stack = */ false)
     }
 
     /// Create a new `Mmap` pointing to `accessible_size` bytes of page-aligned accessible memory,
     /// within a reserved mapping of `mapping_size` bytes. `accessible_size` and `mapping_size`
     /// must be native page-size multiples.
     #[cfg(not(target_os = "windows"))]
-    pub fn accessible_reserved(accessible_size: usize, mapping_size: usize) -> Result<Self> {
+    pub fn accessible_reserved(
+        accessible_size: usize,
+        mapping_size: usize,
+        is_stack: bool,
+    ) -> Result<Self> {
         let page_size = region::page::size();
         assert_le!(accessible_size, mapping_size);
         assert_eq!(mapping_size & (page_size - 1), 0);
@@ -60,6 +65,8 @@ impl Mmap {
             return Ok(Self::new());
         }
 
+        let stack = if is_stack { STACK_MMAP_FLAGS } else { 0 };
+
         Ok(if accessible_size == mapping_size {
             // Allocate a single read-write region at once.
             let ptr = unsafe {
@@ -67,7 +74,7 @@ impl Mmap {
                     ptr::null_mut(),
                     mapping_size,
                     libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_PRIVATE | libc::MAP_ANON,
+                    libc::MAP_PRIVATE | libc::MAP_ANON | stack,
                     -1,
                     0,
                 )
@@ -82,6 +89,7 @@ impl Mmap {
             }
         } else {
             // Reserve the mapping size.
+            assert!(stack == 0);
             let ptr = unsafe {
                 libc::mmap(
                     ptr::null_mut(),
@@ -114,7 +122,11 @@ impl Mmap {
     /// within a reserved mapping of `mapping_size` bytes. `accessible_size` and `mapping_size`
     /// must be native page-size multiples.
     #[cfg(target_os = "windows")]
-    pub fn accessible_reserved(accessible_size: usize, mapping_size: usize) -> Result<Self> {
+    pub fn accessible_reserved(
+        accessible_size: usize,
+        mapping_size: usize,
+        _is_stack: bool,
+    ) -> Result<Self> {
         use winapi::um::memoryapi::VirtualAlloc;
         use winapi::um::winnt::{MEM_COMMIT, MEM_RESERVE, PAGE_NOACCESS, PAGE_READWRITE};
 
