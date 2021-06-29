@@ -20,14 +20,14 @@ cap-fs-ext = "0.13.7"
 cap-time-ext = "0.13.7"
 fs-set-times = "0.3.1"
 unsafe-io = "0.6.5"
-system-interface = { version = "0.6.4", features = ["cap_std_impls"] }
+system-interface = { version = "0.6.6", features = ["cap_std_impls"] }
 tracing = "0.1.19"
 bitflags = "1.2"
 anyhow = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-posish = "0.6.1"
+posish = "0.6.3"
 
 
 [target.'cfg(windows)'.dependencies]

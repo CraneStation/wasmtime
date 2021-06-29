@@ -21,7 +21,7 @@ cap-time-ext = "0.13.10"
 cap-rand = "0.13.10"
 fs-set-times = "0.3.1"
 unsafe-io = "0.6.5"
-system-interface = { version = "0.6.4", features = ["cap_std_impls"] }
+system-interface = { version = "0.6.6", features = ["cap_std_impls"] }
 tracing = "0.1.19"
 bitflags = "1.2"
 

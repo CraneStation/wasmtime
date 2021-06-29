@@ -58,7 +58,7 @@ jobs:
         submodules: true
     - uses: ./.github/actions/install-rust
       with:
-        toolchain: nightly-2021-04-11
+        toolchain: nightly-2021-06-27
 
     # Build C API documentation
     - run: sudo apt-get update -y && sudo apt-get install -y libclang1-9 libclang-cpp9
@@ -175,7 +175,7 @@ jobs:
     # flags to rustc.
     - uses: ./.github/actions/install-rust
       with:
-        toolchain: nightly-2021-04-11
+        toolchain: nightly-2021-06-27
     - run: cargo install cargo-fuzz --vers "^0.8"
     - run: cargo fetch
       working-directory: ./fuzz

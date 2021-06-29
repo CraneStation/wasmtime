@@ -158,6 +158,18 @@ unsafe fn get_pc(cx: *mut libc::c_void, _signum: libc::c_int) -> *const u8 {
         } else if #[cfg(all(target_os = "freebsd", target_arch = "x86_64"))] {
             let cx = &*(cx as *const libc::ucontext_t);
             cx.uc_mcontext.mc_rip as *const u8
+        } else if #[cfg(all(target_os = "openbsd", target_arch = "x86_64"))] {
+            extern "C" {
+                /// Rust `libc` does not yet have a definitionof `ucontext_t`
+                /// for OpenBSD, so we use a helper written in C instead (which
+                /// includes the appropriate header file).
+                ///
+                /// See rust-lang/libc#2189. When that merges and makes it into
+                /// a `rustc` included in an OpenBSD release, then we can remove
+                /// this C helper.
+                fn GetPCFromSignalContext(cx: *mut libc::c_void) -> *const u8;
+            }
+            GetPCFromSignalContext(cx)
         } else {
             compile_error!("unsupported platform");
         }

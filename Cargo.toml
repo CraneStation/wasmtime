@@ -119,3 +119,6 @@ harness = false
 [[bench]]
 name = "thread_eager_init"
 harness = false
+
+[patch.crates-io]
+region = { git = "https://github.com/darfink/region-rs", branch = "master" }
