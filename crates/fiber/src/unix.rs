@@ -43,6 +43,72 @@ pub struct FiberStack {
     len: Option<usize>,
 }
 
+/// Maps a new stack with a guard page. Returns (top, len).
+#[cfg(not(target_os = "openbsd"))]
+unsafe fn mmap_new_stack(size: usize, page_size: usize) -> io::Result<(*mut u8, usize)> {
+    // Add in one page for a guard page and then ask for some memory.
+    let mmap_len = size + page_size;
+    let mmap = libc::mmap(
+        ptr::null_mut(),
+        mmap_len,
+        libc::PROT_NONE,
+        libc::MAP_ANON | libc::MAP_PRIVATE,
+        -1,
+        0,
+    );
+    if mmap == libc::MAP_FAILED {
+        return Err(io::Error::last_os_error());
+    }
+
+    if libc::mprotect(
+        mmap.cast::<u8>().add(page_size).cast(),
+        size,
+        libc::PROT_READ | libc::PROT_WRITE,
+    ) != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+
+    Ok((mmap.cast::<u8>().add(mmap_len).cast(), mmap_len))
+}
+
+/// Maps a new stack with a guard page. Returns (top, len).
+#[cfg(target_os = "openbsd")]
+unsafe fn mmap_new_stack(size: usize, page_size: usize) -> io::Result<(*mut u8, usize)> {
+    // On OpenBSD, we need to use MAP_STACK to specify that a page can contain a
+    // stack; otherwise, we will get a SIGSEGV when it is used as such.
+    //
+    // Note also that MAP_STACK must be specified with PROT_READ|PROT_WRITE, and
+    // must be specified without a fixed location (see
+    // /usr/src/sys/uvm/uvm_mmap.c:sys_mmap() flag validation), so we cannot do
+    // the mmap/mprotect trick as above to get a guard page and we cannot
+    // munmap/mmap to set MAP_STACK in a fixed location. Instead, we need to (i)
+    // do a mmap to get the stack at the kernel's choice of location, and then
+    // (ii) mprotect the lowest page to get a guard page.
+
+    const MAP_STACK: libc::c_int = 0x4000; // from <sys/mman.h>, not in `libc`.
+
+    // Add in one page for a guard page and then ask for some memory.
+    let mmap_len = size + page_size;
+    let mmap = libc::mmap(
+        ptr::null_mut(),
+        mmap_len,
+        libc::PROT_READ | libc::PROT_WRITE,
+        libc::MAP_ANON | libc::MAP_PRIVATE | MAP_STACK,
+        -1,
+        0,
+    );
+    if mmap == libc::MAP_FAILED {
+        return Err(io::Error::last_os_error());
+    }
+
+    if libc::mprotect(mmap, page_size, libc::PROT_NONE) != 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    Ok((mmap.cast::<u8>().add(mmap_len).cast(), mmap_len))
+}
+
 impl FiberStack {
     pub fn new(size: usize) -> io::Result<Self> {
         unsafe {
@@ -55,32 +121,11 @@ impl FiberStack {
                 (size + (page_size - 1)) & (!(page_size - 1))
             };
 
-            // Add in one page for a guard page and then ask for some memory.
-            let mmap_len = size + page_size;
-            let mmap = libc::mmap(
-                ptr::null_mut(),
-                mmap_len,
-                libc::PROT_NONE,
-                libc::MAP_ANON | libc::MAP_PRIVATE,
-                -1,
-                0,
-            );
-            if mmap == libc::MAP_FAILED {
-                return Err(io::Error::last_os_error());
-            }
-
-            if libc::mprotect(
-                mmap.cast::<u8>().add(page_size).cast(),
-                size,
-                libc::PROT_READ | libc::PROT_WRITE,
-            ) != 0
-            {
-                return Err(io::Error::last_os_error());
-            }
+            let (top, len) = mmap_new_stack(size, page_size)?;
 
             Ok(Self {
-                top: mmap.cast::<u8>().add(mmap_len),
-                len: Some(mmap_len),
+                top,
+                len: Some(len),
             })
         }
     }

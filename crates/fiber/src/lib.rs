@@ -232,6 +232,8 @@ mod tests {
                 .any(|s| s.contains("look_for_me"))
                 // TODO: apparently windows unwind routines don't unwind through fibers, so this will always fail. Is there a way we can fix that?
                 || cfg!(windows)
+                // TODO: also does not work with backtrace lib on OpenBSD.
+                || cfg!(target_os = "openbsd")
             );
         }
 
