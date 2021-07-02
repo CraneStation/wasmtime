@@ -133,8 +133,16 @@ where
     // Interpret a Cranelift instruction.
     Ok(match inst.opcode() {
         Opcode::Jump | Opcode::Fallthrough => ControlFlow::ContinueAt(branch(), args()?),
-        Opcode::Brz => branch_when(!arg(0)?.into_bool()?)?,
-        Opcode::Brnz => branch_when(arg(0)?.into_bool()?)?,
+        Opcode::Brz => branch_when(match arg(0)?.ty() {
+            ty if ty.is_bool() => !arg(0)?.into_bool()?,
+            ty if ty.is_int() => arg(0)?.into_int()? == 0,
+            _ => return Err(StepError::ValueError(ValueError::InvalidValue(types::B1))),
+        })?,
+        Opcode::Brnz => branch_when(match arg(0)?.ty() {
+            ty if ty.is_bool() => arg(0)?.into_bool()?,
+            ty if ty.is_int() => arg(0)?.into_int()? != 0,
+            _ => return Err(StepError::ValueError(ValueError::InvalidValue(types::B1))),
+        })?,
         Opcode::BrIcmp => branch_when(icmp(inst.cond_code().unwrap(), &arg(1)?, &arg(2)?)?)?,
         Opcode::Brif => branch_when(state.has_iflag(inst.cond_code().unwrap()))?,
         Opcode::Brff => branch_when(state.has_fflag(inst.fp_cond_code().unwrap()))?,
