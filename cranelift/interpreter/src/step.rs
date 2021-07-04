@@ -102,8 +102,17 @@ where
 
     // Based on `condition`, indicate where to continue the control flow.
     let branch_when = |condition: bool| -> Result<ControlFlow<V>, StepError> {
+        let branch_args = match inst {
+            InstructionData::Jump { .. } => args_range(0..),
+            InstructionData::BranchInt { .. }
+            | InstructionData::BranchFloat { .. }
+            | InstructionData::Branch { .. } => args_range(1..),
+            InstructionData::BranchIcmp { .. } => args_range(2..),
+            _ => panic!("Unrecognized branch inst: {:?}", inst),
+        }?;
+
         Ok(if condition {
-            ControlFlow::ContinueAt(branch(), args_range(1..)?)
+            ControlFlow::ContinueAt(branch(), branch_args)
         } else {
             ControlFlow::Continue
         })
@@ -143,7 +152,7 @@ where
             ty if ty.is_int() => arg(0)?.into_int()? != 0,
             _ => return Err(StepError::ValueError(ValueError::InvalidValue(types::B1))),
         })?,
-        Opcode::BrIcmp => branch_when(icmp(inst.cond_code().unwrap(), &arg(1)?, &arg(2)?)?)?,
+        Opcode::BrIcmp => branch_when(icmp(inst.cond_code().unwrap(), &arg(0)?, &arg(1)?)?)?,
         Opcode::Brif => branch_when(state.has_iflag(inst.cond_code().unwrap()))?,
         Opcode::Brff => branch_when(state.has_fflag(inst.fp_cond_code().unwrap()))?,
         Opcode::BrTable => unimplemented!("BrTable"),
