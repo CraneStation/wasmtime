@@ -720,8 +720,8 @@ where
             &left.clone().convert(ValueConversionKind::ToUnsigned)?,
             &right.clone().convert(ValueConversionKind::ToUnsigned)?,
         )?,
-        IntCC::Overflow => unimplemented!("IntCC::Overflow"),
-        IntCC::NotOverflow => unimplemented!("IntCC::NotOverflow"),
+        IntCC::Overflow => Value::of(left, right)?,
+        IntCC::NotOverflow => !Value::of(left, right)?,
     })
 }
 
