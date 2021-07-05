@@ -2,10 +2,14 @@ use crate::config::Config;
 use anyhow::Result;
 use arbitrary::Unstructured;
 use cranelift::codegen::ir::types::*;
-use cranelift::codegen::ir::{AbiParam, ExternalName, Function, Opcode, Signature, Type, Value};
+use cranelift::codegen::ir::{
+    AbiParam, Block, ExternalName, Function, Opcode, Signature, Type, Value,
+};
 use cranelift::codegen::isa::CallConv;
 use cranelift::frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift::prelude::{EntityRef, InstBuilder};
+
+type BlockSignature = Vec<Type>;
 
 fn insert_opcode_arity_0(
     _fgen: &mut FunctionGenerator,
@@ -92,6 +96,7 @@ where
     u: &'r mut Unstructured<'data>,
     config: &'r Config,
     vars: Vec<(Type, Variable)>,
+    blocks: Vec<(Block, BlockSignature)>,
 }
 
 impl<'r, 'data> FunctionGenerator<'r, 'data>
@@ -103,6 +108,7 @@ where
             u,
             config,
             vars: vec![],
+            blocks: vec![],
         }
     }
 
@@ -203,12 +209,85 @@ where
         Ok(())
     }
 
+    fn generate_jump(&mut self, builder: &mut FunctionBuilder) -> Result<()> {
+        let (block, signature) = {
+            let target = self.u.choose(&self.blocks[..])?;
+            let target = target.clone();
+            target
+        };
+
+        let vars = signature
+            .iter()
+            .map(|ty| self.get_variable_of_type(*ty))
+            .collect::<Result<Vec<_>>>()?;
+
+        let vals = vars
+            .into_iter()
+            .map(|v| builder.use_var(v))
+            .collect::<Vec<_>>();
+
+        builder.ins().jump(*block, &vals[..]);
+        Ok(())
+    }
+
     /// Inserts a random instruction into the block
     fn generate_instruction(&mut self, builder: &mut FunctionBuilder) -> Result<()> {
         let (op, args, rets, inserter) = *self.u.choose(OPCODE_SIGNATURES)?;
         inserter(self, builder, op, args, rets)
     }
 
+    /// Creates a random amount of blocks in this function
+    fn generate_blocks(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        sig: &Signature,
+    ) -> Result<Vec<(Block, BlockSignature)>> {
+        let extra_block_count = self
+            .u
+            .int_in_range(self.config.blocks_per_function.clone())?;
+
+        // We must always have at least one block, so we generate the "extra" blocks and add 1 for
+        // the entry block.
+        let block_count = 1 + extra_block_count;
+
+        let blocks = (0..block_count)
+            .map(|i| {
+                let block = builder.create_block();
+
+                // The first block has to have the function signature, but for the rest of them we generate
+                // a random signature;
+                if i == 0 {
+                    builder.append_block_params_for_function_params(block);
+                    Ok((block, sig.params.iter().map(|a| a.value_type).collect()))
+                } else {
+                    Ok((block, self.generate_block_signature()?))
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(blocks)
+    }
+
+    fn generate_block_signature(&mut self) -> Result<BlockSignature> {
+        let param_count = self
+            .u
+            .int_in_range(self.config.block_signature_params.clone())?;
+
+        let mut params = Vec::with_capacity(param_count);
+        for _ in 0..param_count {
+            params.push(self.generate_type()?);
+        }
+        Ok(params)
+    }
+
+    /// We generate a function in multiple stages: by first creating a random number of empty
+    ///
+    /// * First we generate a random number of empty blocks
+    /// * Then we generate a random pool of variables to be used throughout the function
+    /// * We then visit each block and generate random instructions
+    ///
+    /// Because we generate all blocks and variables up front we already know everything that
+    /// we need when generating instructions (i.e. jump targets / variables)
     pub fn generate(mut self) -> Result<Function> {
         let sig = self.generate_signature()?;
 
@@ -216,36 +295,57 @@ where
         let mut func = Function::with_name_signature(ExternalName::user(0, 0), sig.clone());
 
         let mut builder = FunctionBuilder::new(&mut func, &mut fn_builder_ctx);
-        let block0 = builder.create_block();
-        builder.append_block_params_for_function_params(block0);
-        builder.switch_to_block(block0);
-        builder.seal_block(block0);
 
-        // Define variables for the function signature
-        for (i, param) in sig.params.iter().enumerate() {
-            let var = self.create_var(&mut builder, param.value_type)?;
-            let block_param = builder.block_params(block0)[i];
-            builder.def_var(var, block_param);
+        self.blocks = self.generate_blocks(&mut builder, &sig)?;
+
+        // Main instruction generation loop
+        for (i, (block, signature)) in self.blocks.clone().iter().enumerate() {
+            builder.switch_to_block(*block);
+
+            if i == 0 {
+                // Define variables for the function signature
+                for (i, param) in sig.params.iter().enumerate() {
+                    let var = self.create_var(&mut builder, param.value_type)?;
+                    let block_param = builder.block_params(*block)[i];
+                    builder.def_var(var, block_param);
+                }
+
+                // Create a pool of vars that are going to be used in this function
+                for _ in 0..self.u.int_in_range(self.config.vars_per_function.clone())? {
+                    let ty = self.generate_type()?;
+                    let var = self.create_var(&mut builder, ty)?;
+                    let value = self.generate_const(&mut builder, ty)?;
+                    builder.def_var(var, value);
+                }
+            } else {
+                // Define variables for the block params
+                for (i, ty) in signature.iter().enumerate() {
+                    let var = self.get_variable_of_type(*ty)?;
+                    let block_param = builder.block_params(*block)[i];
+                    builder.def_var(var, block_param);
+                }
+            }
+
+            // Generate block instructions
+            for _ in 0..self
+                .u
+                .int_in_range(self.config.instructions_per_block.clone())?
+            {
+                self.generate_instruction(&mut builder)?;
+            }
+
+            // We always need to exit safely out of a block.
+            // For block 0 this means a return, but for other block it is a jump into any other
+            // random block.
+            if i == 0 {
+                // TODO: We should make this, part of the regular instruction selection
+                self.generate_return(&mut builder)?;
+            } else {
+                self.generate_jump(&mut builder)?;
+            }
         }
 
-        // Create a pool of vars that are going to be used in this function
-        for _ in 0..self.u.int_in_range(self.config.vars_per_function.clone())? {
-            let ty = self.generate_type()?;
-            let var = self.create_var(&mut builder, ty)?;
-            let value = self.generate_const(&mut builder, ty)?;
-            builder.def_var(var, value);
-        }
-
-        for _ in 0..self
-            .u
-            .int_in_range(self.config.instructions_per_block.clone())?
-        {
-            self.generate_instruction(&mut builder)?;
-        }
-
-        // TODO: We should make this part of the regular instruction selection
-        self.generate_return(&mut builder)?;
-
+        builder.seal_all_blocks();
         builder.finalize();
 
         Ok(func)
