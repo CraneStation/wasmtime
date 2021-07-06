@@ -1425,9 +1425,54 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
             }
         }
     } else if !ty.is_vector() {
-        let alu_op = choose_32_64(ty, ALUOp::SubS32, ALUOp::SubS64);
         let rn = put_input_in_reg(ctx, inputs[0], narrow_mode);
         let rm = put_input_in_rse_imm12(ctx, inputs[1], narrow_mode);
+
+        let is_overflow = condcode == IntCC::Overflow || condcode == IntCC::NotOverflow;
+        let is_small_type = ty == I8 || ty == I16;
+        let (rn, rm) = if is_overflow && is_small_type {
+            // Overflow checks for non native types require additional instructions, other than
+            // just the extend op.
+            //
+            // TODO: Codegen improvements here:
+            // * Merge the second sxt{h,b} into the sub instruction.
+            // * We can especially improve codegen here if we can return a different flag out of
+            // this function. That way we can tell the caller to use the 'ne' flag and save
+            // the last 3 instructions.
+            //
+            // sxt{h,b}  w0, w0
+            // sxt{h,b}  w1, w1
+            // sub       w0, w0, w1
+            // cmp       w0, w0, sxt{h,b}
+            // cset      w0, ne
+            // mov       w1, #0x80000000
+            // cmp       w1, w0
+
+            let extend_op = if ty == I8 {
+                ExtendOp::SXTB
+            } else {
+                ExtendOp::SXTH
+            };
+            let tmp1 = ctx.alloc_tmp(I32).only_reg().unwrap();
+            let tmp2 = ctx.alloc_tmp(I32).only_reg().unwrap();
+            ctx.emit(alu_inst_imm12(ALUOp::Sub32, tmp1, rn, rm));
+            ctx.emit(alu_inst_imm12(
+                ALUOp::SubS32,
+                writable_zero_reg(),
+                tmp1.to_reg(),
+                ResultRSEImm12::RegExtend(tmp1.to_reg(), extend_op),
+            ));
+            ctx.emit(Inst::CSet {
+                rd: tmp2,
+                cond: Cond::Ne,
+            });
+            lower_constant_u64(ctx, tmp1, 0x8000_0000);
+            (tmp1.to_reg(), ResultRSEImm12::Reg(tmp2.to_reg()))
+        } else {
+            (rn, rm)
+        };
+
+        let alu_op = choose_32_64(ty, ALUOp::SubS32, ALUOp::SubS64);
         ctx.emit(alu_inst_imm12(alu_op, writable_zero_reg(), rn, rm));
 
         if let IcmpOutput::Register(rd) = output {
