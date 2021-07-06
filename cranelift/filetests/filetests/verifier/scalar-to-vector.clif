@@ -1,5 +1,6 @@
 test verifier
 set enable_simd=true
+target aarch64
 target x86_64
 
 function %scalar_to_vector() {

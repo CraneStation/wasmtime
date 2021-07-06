@@ -1,4 +1,5 @@
 test legalizer
+target aarch64
 target i686
 
 function %foo() -> i64 {

@@ -1,4 +1,5 @@
 test peepmatic
+target aarch64
 target x86_64
 
 ;; The `isub` is a no-op, but we can't replace the whole `isub` instruction with

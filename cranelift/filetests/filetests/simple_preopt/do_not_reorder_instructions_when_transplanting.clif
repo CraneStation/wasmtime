@@ -1,4 +1,5 @@
 test simple_preopt
+target aarch64
 target x86_64
 
 ;; Test that although v5 can be replaced with v1, we don't transplant `load.i32

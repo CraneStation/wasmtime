@@ -3597,9 +3597,12 @@ pub(crate) fn define(
         Inst::new(
             "fmin",
             r#"
-        Floating point minimum, propagating NaNs.
+        Floating point minimum, propagating NaNs using the WebAssembly rules.
 
-        If either operand is NaN, this returns a NaN.
+        If either operand is NaN, this returns NaN with an unspecified sign. Furthermore, if
+        each input NaN consists of a mantissa whose most significant bit is 1 and the rest is
+        0, then the output has the same form. Otherwise, the output mantissa's most significant
+        bit is 1 and the rest is unspecified.
         "#,
             &formats.binary,
         )
@@ -3629,9 +3632,12 @@ pub(crate) fn define(
         Inst::new(
             "fmax",
             r#"
-        Floating point maximum, propagating NaNs.
+        Floating point maximum, propagating NaNs using the WebAssembly rules.
 
-        If either operand is NaN, this returns a NaN.
+        If either operand is NaN, this returns NaN with an unspecified sign. Furthermore, if
+        each input NaN consists of a mantissa whose most significant bit is 1 and the rest is
+        0, then the output has the same form. Otherwise, the output mantissa's most significant
+        bit is 1 and the rest is unspecified.
         "#,
             &formats.binary,
         )

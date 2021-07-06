@@ -3,6 +3,7 @@ test compile
 
 ; We only test on 64-bit since the heap_addr instructions and vmctx parameters
 ; explicitly mention the pointer width.
+target aarch64
 target x86_64 haswell
 
 function %i64_load(i32, i64 vmctx) -> i64 {

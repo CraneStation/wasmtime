@@ -1,4 +1,5 @@
 test simple_preopt
+target aarch64
 target i686 baseline
 
 ; -------- U32 --------

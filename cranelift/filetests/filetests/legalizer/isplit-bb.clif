@@ -1,4 +1,5 @@
 test legalizer
+target aarch64
 target x86_64
 
 function u0:0(i128, i128, i64) -> i128 system_v {

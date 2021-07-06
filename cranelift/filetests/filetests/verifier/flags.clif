@@ -1,4 +1,5 @@
 test verifier
+target aarch64
 target i686
 
 ; Simple, correct use of CPU flags.

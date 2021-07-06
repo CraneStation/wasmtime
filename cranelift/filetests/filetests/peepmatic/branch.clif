@@ -1,4 +1,5 @@
 test peepmatic
+target aarch64
 target x86_64
 
 function %icmp_to_brz_fold(i32) -> i32 {

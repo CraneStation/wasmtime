@@ -1,6 +1,7 @@
 ; Test code generation for WebAssembly i64 comparison operators.
 test compile
 
+target aarch64
 target x86_64 haswell
 
 function %i64_eqz(i64) -> i32 {

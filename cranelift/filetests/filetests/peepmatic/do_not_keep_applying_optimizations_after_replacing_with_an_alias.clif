@@ -1,4 +1,5 @@
 test peepmatic
+target aarch64
 target x86_64
 
 ;; This file used to trigger assertions where we would keep trying to

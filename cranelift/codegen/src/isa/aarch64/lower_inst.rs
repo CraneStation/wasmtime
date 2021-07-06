@@ -1890,23 +1890,30 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
         }
 
         Opcode::Bint => {
+            let ty = ty.unwrap();
+
+            if ty.is_vector() {
+                return Err(CodegenError::Unsupported(format!(
+                    "Bint: Unsupported type: {:?}",
+                    ty
+                )));
+            }
+
             // Booleans are stored as all-zeroes (0) or all-ones (-1). We AND
             // out the LSB to give a 0 / 1-valued integer result.
-            let rn = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
-            let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
-            let output_bits = ty_bits(ctx.output_ty(insn, 0));
+            let input = put_input_in_regs(ctx, inputs[0]);
+            let output = get_output_reg(ctx, outputs[0]);
 
-            let (imm_ty, alu_op) = if output_bits > 32 {
-                (I64, ALUOp::And64)
-            } else {
-                (I32, ALUOp::And32)
-            };
             ctx.emit(Inst::AluRRImmLogic {
-                alu_op,
-                rd,
-                rn,
-                imml: ImmLogic::maybe_from_u64(1, imm_ty).unwrap(),
+                alu_op: ALUOp::And32,
+                rd: output.regs()[0],
+                rn: input.regs()[0],
+                imml: ImmLogic::maybe_from_u64(1, I32).unwrap(),
             });
+
+            if ty_bits(ty) > 64 {
+                lower_constant_u64(ctx, output.regs()[1], 0);
+            }
         }
 
         Opcode::Bitcast => {
@@ -2329,7 +2336,9 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
             }
         }
 
-        Opcode::VallTrue if ctx.input_ty(insn, 0) == I64X2 => {
+        Opcode::VallTrue if ty_bits(ctx.input_ty(insn, 0).lane_type()) == 64 => {
+            debug_assert!(ctx.input_ty(insn, 0).is_vector());
+
             let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
             let rm = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
             let tmp = ctx.alloc_tmp(I64X2).only_reg().unwrap();
