@@ -1656,9 +1656,7 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                 maybe_input_insn_via_conv(ctx, flag_input, Opcode::Icmp, Opcode::Bint)
             {
                 let condcode = ctx.data(icmp_insn).cond_code().unwrap();
-                let cond = lower_condcode(condcode);
-                lower_icmp(ctx, icmp_insn, condcode, IcmpOutput::Flags)?;
-                cond
+                lower_icmp(ctx, icmp_insn, condcode, IcmpOutput::Flags)?.unwrap_cond()
             } else if let Some(fcmp_insn) =
                 maybe_input_insn_via_conv(ctx, flag_input, Opcode::Fcmp, Opcode::Bint)
             {
@@ -1721,11 +1719,10 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
 
         Opcode::Selectif | Opcode::SelectifSpectreGuard => {
             let condcode = ctx.data(insn).cond_code().unwrap();
-            let cond = lower_condcode(condcode);
             // Verification ensures that the input is always a
             // single-def ifcmp.
             let ifcmp_insn = maybe_input_insn(ctx, inputs[0], Opcode::Ifcmp).unwrap();
-            lower_icmp(ctx, ifcmp_insn, condcode, IcmpOutput::Flags)?;
+            let cond = lower_icmp(ctx, ifcmp_insn, condcode, IcmpOutput::Flags)?.unwrap_cond();
 
             // csel.COND rd, rn, rm
             let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
@@ -2042,12 +2039,10 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                 cond
             } else if op == Opcode::Trapif {
                 let condcode = ctx.data(insn).cond_code().unwrap();
-                let cond = lower_condcode(condcode);
 
                 // Verification ensures that the input is always a single-def ifcmp.
                 let ifcmp_insn = maybe_input_insn(ctx, inputs[0], Opcode::Ifcmp).unwrap();
-                lower_icmp(ctx, ifcmp_insn, condcode, IcmpOutput::Flags)?;
-                cond
+                lower_icmp(ctx, ifcmp_insn, condcode, IcmpOutput::Flags)?.unwrap_cond()
             } else {
                 let condcode = ctx.data(insn).fp_cond_code().unwrap();
                 let cond = lower_fp_condcode(condcode);
@@ -3651,11 +3646,11 @@ pub(crate) fn lower_branch<C: LowerCtx<I = Inst>>(
                     maybe_input_insn_via_conv(ctx, flag_input, Opcode::Icmp, Opcode::Bint)
                 {
                     let condcode = ctx.data(icmp_insn).cond_code().unwrap();
-                    let cond = lower_condcode(condcode);
+                    let cond =
+                        lower_icmp(ctx, icmp_insn, condcode, IcmpOutput::Flags)?.unwrap_cond();
                     let negated = op0 == Opcode::Brz;
                     let cond = if negated { cond.invert() } else { cond };
 
-                    lower_icmp(ctx, icmp_insn, condcode, IcmpOutput::Flags)?;
                     ctx.emit(Inst::CondBr {
                         taken,
                         not_taken,
@@ -3703,32 +3698,29 @@ pub(crate) fn lower_branch<C: LowerCtx<I = Inst>>(
             }
             Opcode::BrIcmp => {
                 let condcode = ctx.data(branches[0]).cond_code().unwrap();
-                let cond = lower_condcode(condcode);
-                let kind = CondBrKind::Cond(cond);
+                let cond = lower_icmp(ctx, branches[0], condcode, IcmpOutput::Flags)?.unwrap_cond();
 
-                lower_icmp(ctx, branches[0], condcode, IcmpOutput::Flags)?;
                 ctx.emit(Inst::CondBr {
                     taken,
                     not_taken,
-                    kind,
+                    kind: CondBrKind::Cond(cond),
                 });
             }
 
             Opcode::Brif => {
                 let condcode = ctx.data(branches[0]).cond_code().unwrap();
-                let cond = lower_condcode(condcode);
-                let kind = CondBrKind::Cond(cond);
 
                 let flag_input = InsnInput {
                     insn: branches[0],
                     input: 0,
                 };
                 if let Some(ifcmp_insn) = maybe_input_insn(ctx, flag_input, Opcode::Ifcmp) {
-                    lower_icmp(ctx, ifcmp_insn, condcode, IcmpOutput::Flags)?;
+                    let cond =
+                        lower_icmp(ctx, ifcmp_insn, condcode, IcmpOutput::Flags)?.unwrap_cond();
                     ctx.emit(Inst::CondBr {
                         taken,
                         not_taken,
-                        kind,
+                        kind: CondBrKind::Cond(cond),
                     });
                 } else {
                     // If the ifcmp result is actually placed in a
@@ -3738,7 +3730,7 @@ pub(crate) fn lower_branch<C: LowerCtx<I = Inst>>(
                     ctx.emit(Inst::CondBr {
                         taken,
                         not_taken,
-                        kind,
+                        kind: CondBrKind::Cond(lower_condcode(condcode)),
                     });
                 }
             }
