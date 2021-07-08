@@ -108,6 +108,9 @@ pub enum ValueConversionKind {
     /// Convert a floating point number by rounding to the nearest possible value with ties to even.
     /// See `fdemote`, e.g.
     RoundNearestEven(Type),
+    /// Converts an integer into a boolean, zero integers are converted into a
+    /// `false`, while other integers are converted into `true`. Booleans are passed through.
+    ToBoolean,
 }
 
 /// Helper for creating match expressions over [DataValue].
@@ -262,6 +265,11 @@ impl Value for DataValue {
             ValueConversionKind::RoundNearestEven(ty) => match (self.ty(), ty) {
                 (types::F64, types::F32) => unimplemented!(),
                 _ => unimplemented!("conversion: {} -> {:?}", self.ty(), kind),
+            },
+            ValueConversionKind::ToBoolean => match self.ty() {
+                ty if ty.is_bool() => DataValue::B(self.into_bool()?),
+                ty if ty.is_int() => DataValue::B(self.into_int()? != 0),
+                ty => unimplemented!("conversion: {} -> {:?}", ty, kind),
             },
         })
     }
