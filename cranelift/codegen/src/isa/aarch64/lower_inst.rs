@@ -244,183 +244,93 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
         }
 
         Opcode::Imul => {
-            let lhs = put_input_in_regs(ctx, inputs[0]);
-            let rhs = put_input_in_regs(ctx, inputs[1]);
-            let dst = get_output_reg(ctx, outputs[0]);
-
-            let rd = dst.regs()[0];
-            let rn = lhs.regs()[0];
-            let rm = rhs.regs()[0];
-
             let ty = ty.unwrap();
-            match ty {
-                I128 => {
-                    assert_eq!(lhs.len(), 2);
-                    assert_eq!(rhs.len(), 2);
-                    assert_eq!(dst.len(), 2);
+            if ty == I128 {
+              let lhs = put_input_in_regs(ctx, inputs[0]);
+              let rhs = put_input_in_regs(ctx, inputs[1]);
+              let dst = get_output_reg(ctx, outputs[0]);
+              assert_eq!(lhs.len(), 2);
+              assert_eq!(rhs.len(), 2);
+              assert_eq!(dst.len(), 2);
 
-                    // 128bit mul formula:
-                    //   dst_lo = lhs_lo * rhs_lo
-                    //   dst_hi = umulhi(lhs_lo, rhs_lo) + (lhs_lo * rhs_hi) + (lhs_hi * rhs_lo)
-                    //
-                    // We can convert the above formula into the following
-                    // umulh   dst_hi, lhs_lo, rhs_lo
-                    // madd    dst_hi, lhs_lo, rhs_hi, dst_hi
-                    // madd    dst_hi, lhs_hi, rhs_lo, dst_hi
-                    // mul     dst_lo, lhs_lo, rhs_lo
+              // 128bit mul formula:
+              //   dst_lo = lhs_lo * rhs_lo
+              //   dst_hi = umulhi(lhs_lo, rhs_lo) + (lhs_lo * rhs_hi) + (lhs_hi * rhs_lo)
+              //
+              // We can convert the above formula into the following
+              // umulh   dst_hi, lhs_lo, rhs_lo
+              // madd    dst_hi, lhs_lo, rhs_hi, dst_hi
+              // madd    dst_hi, lhs_hi, rhs_lo, dst_hi
+              // mul     dst_lo, lhs_lo, rhs_lo
 
-                    ctx.emit(Inst::AluRRR {
-                        alu_op: ALUOp::UMulH,
-                        rd: dst.regs()[1],
-                        rn: lhs.regs()[0],
-                        rm: rhs.regs()[0],
-                    });
-                    ctx.emit(Inst::AluRRRR {
-                        alu_op: ALUOp3::MAdd64,
-                        rd: dst.regs()[1],
-                        rn: lhs.regs()[0],
-                        rm: rhs.regs()[1],
-                        ra: dst.regs()[1].to_reg(),
-                    });
-                    ctx.emit(Inst::AluRRRR {
-                        alu_op: ALUOp3::MAdd64,
-                        rd: dst.regs()[1],
-                        rn: lhs.regs()[1],
-                        rm: rhs.regs()[0],
-                        ra: dst.regs()[1].to_reg(),
-                    });
-                    ctx.emit(Inst::AluRRRR {
-                        alu_op: ALUOp3::MAdd64,
-                        rd: dst.regs()[0],
-                        rn: lhs.regs()[0],
-                        rm: rhs.regs()[0],
-                        ra: zero_reg(),
-                    });
-                }
-                ty if !ty.is_vector() => {
-                    let alu_op = choose_32_64(ty, ALUOp3::MAdd32, ALUOp3::MAdd64);
-                    ctx.emit(Inst::AluRRRR {
+              ctx.emit(Inst::AluRRR {
+                  alu_op: ALUOp::UMulH,
+                  rd: dst.regs()[1],
+                  rn: lhs.regs()[0],
+                  rm: rhs.regs()[0],
+              });
+              ctx.emit(Inst::AluRRRR {
+                  alu_op: ALUOp3::MAdd64,
+                  rd: dst.regs()[1],
+                  rn: lhs.regs()[0],
+                  rm: rhs.regs()[1],
+                  ra: dst.regs()[1].to_reg(),
+              });
+              ctx.emit(Inst::AluRRRR {
+                  alu_op: ALUOp3::MAdd64,
+                  rd: dst.regs()[1],
+                  rn: lhs.regs()[1],
+                  rm: rhs.regs()[0],
+                  ra: dst.regs()[1].to_reg(),
+              });
+              ctx.emit(Inst::AluRRRR {
+                  alu_op: ALUOp3::MAdd64,
+                  rd: dst.regs()[0],
+                  rn: lhs.regs()[0],
+                  rm: rhs.regs()[0],
+                  ra: zero_reg(),
+              });
+            } else if ty.is_vector() {
+                for ext_op in &[Opcode::SwidenLow, Opcode::SwidenHigh,
+                                Opcode::UwidenLow, Opcode::UwidenHigh] {
+                  if let Some((alu_op, rn, rm, high_half)) = match_vec_long_mul(ctx, insn, *ext_op) {
+                    let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
+                    ctx.emit(Inst::VecRRRLong {
                         alu_op,
                         rd,
                         rn,
                         rm,
-                        ra: zero_reg(),
+                        high_half,
                     });
+                    return Ok(());
+                  }
                 }
-                I64X2 => {
-                    let tmp1 = ctx.alloc_tmp(I64X2).only_reg().unwrap();
-                    let tmp2 = ctx.alloc_tmp(I64X2).only_reg().unwrap();
-
-                    // This I64X2 multiplication is performed with several 32-bit
-                    // operations.
-
-                    // 64-bit numbers x and y, can be represented as:
-                    //   x = a + 2^32(b)
-                    //   y = c + 2^32(d)
-
-                    // A 64-bit multiplication is:
-                    //   x * y = ac + 2^32(ad + bc) + 2^64(bd)
-                    // note: `2^64(bd)` can be ignored, the value is too large to fit in
-                    // 64 bits.
-
-                    // This sequence implements a I64X2 multiply, where the registers
-                    // `rn` and `rm` are split up into 32-bit components:
-                    //   rn = |d|c|b|a|
-                    //   rm = |h|g|f|e|
-                    //
-                    //   rn * rm = |cg + 2^32(ch + dg)|ae + 2^32(af + be)|
-                    //
-                    //  The sequence is:
-                    //  rev64 rd.4s, rm.4s
-                    //  mul rd.4s, rd.4s, rn.4s
-                    //  xtn tmp1.2s, rn.2d
-                    //  addp rd.4s, rd.4s, rd.4s
-                    //  xtn tmp2.2s, rm.2d
-                    //  shll rd.2d, rd.2s, #32
-                    //  umlal rd.2d, tmp2.2s, tmp1.2s
-
-                    // Reverse the 32-bit elements in the 64-bit words.
-                    //   rd = |g|h|e|f|
-                    ctx.emit(Inst::VecMisc {
-                        op: VecMisc2::Rev64,
-                        rd,
-                        rn: rm,
-                        size: VectorSize::Size32x4,
-                    });
-
-                    // Calculate the high half components.
-                    //   rd = |dg|ch|be|af|
-                    //
-                    // Note that this 32-bit multiply of the high half
-                    // discards the bits that would overflow, same as
-                    // if 64-bit operations were used. Also the Shll
-                    // below would shift out the overflow bits anyway.
-                    ctx.emit(Inst::VecRRR {
-                        alu_op: VecALUOp::Mul,
-                        rd,
-                        rn: rd.to_reg(),
-                        rm: rn,
-                        size: VectorSize::Size32x4,
-                    });
-
-                    // Extract the low half components of rn.
-                    //   tmp1 = |c|a|
-                    ctx.emit(Inst::VecRRNarrow {
-                        op: VecRRNarrowOp::Xtn64,
-                        rd: tmp1,
-                        rn,
-                        high_half: false,
-                    });
-
-                    // Sum the respective high half components.
-                    //   rd = |dg+ch|be+af||dg+ch|be+af|
-                    ctx.emit(Inst::VecRRR {
-                        alu_op: VecALUOp::Addp,
-                        rd: rd,
-                        rn: rd.to_reg(),
-                        rm: rd.to_reg(),
-                        size: VectorSize::Size32x4,
-                    });
-
-                    // Extract the low half components of rm.
-                    //   tmp2 = |g|e|
-                    ctx.emit(Inst::VecRRNarrow {
-                        op: VecRRNarrowOp::Xtn64,
-                        rd: tmp2,
-                        rn: rm,
-                        high_half: false,
-                    });
-
-                    // Shift the high half components, into the high half.
-                    //   rd = |dg+ch << 32|be+af << 32|
-                    ctx.emit(Inst::VecRRLong {
-                        op: VecRRLongOp::Shll32,
-                        rd,
-                        rn: rd.to_reg(),
-                        high_half: false,
-                    });
-
-                    // Multiply the low components together, and accumulate with the high
-                    // half.
-                    //   rd = |rd[1] + cg|rd[0] + ae|
-                    ctx.emit(Inst::VecRRR {
-                        alu_op: VecALUOp::Umlal,
-                        rd,
-                        rn: tmp2.to_reg(),
-                        rm: tmp1.to_reg(),
-                        size: VectorSize::Size32x2,
-                    });
+                if ty == I64X2 {
+                  lower_i64x2_mul(ctx, insn);
+                } else {
+                  let rn = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
+                  let rm = put_input_in_reg(ctx, inputs[1], NarrowValueMode::None);
+                  let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
+                  ctx.emit(Inst::VecRRR {
+                      alu_op: VecALUOp::Mul,
+                      rd,
+                      rn,
+                      rm,
+                      size: VectorSize::from_ty(ty),
+                  });
                 }
-                ty if ty.is_vector() => {
-                    ctx.emit(Inst::VecRRR {
-                        alu_op: VecALUOp::Mul,
-                        rd,
-                        rn,
-                        rm,
-                        size: VectorSize::from_ty(ty),
-                    });
-                }
-                _ => panic!("Unable to emit mul for {}", ty),
+             } else {
+                let alu_op = choose_32_64(ty, ALUOp3::MAdd32, ALUOp3::MAdd64);
+                let rn = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
+                let rm = put_input_in_reg(ctx, inputs[1], NarrowValueMode::None);
+                let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
+                ctx.emit(Inst::AluRRRR {
+                    alu_op,
+                    rd,
+                    rn,
+                    rm,
+                    ra: zero_reg(),
+                });
             }
         }
 
@@ -2747,19 +2657,19 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                 // => smull  tmp, a, b
                 //    smull2 y,   a, b
                 //    addp   y,   tmp, y
-                ctx.emit(Inst::VecRRR {
-                    alu_op: VecALUOp::Smull,
+                ctx.emit(Inst::VecRRRLong {
+                    alu_op: VecRRRLongOp::Smull16,
                     rd: tmp,
                     rn: r_a,
                     rm: r_b,
-                    size: VectorSize::Size16x8,
+                    high_half: false,
                 });
-                ctx.emit(Inst::VecRRR {
-                    alu_op: VecALUOp::Smull2,
+                ctx.emit(Inst::VecRRRLong {
+                    alu_op: VecRRRLongOp::Smull16,
                     rd: r_y,
                     rn: r_a,
                     rm: r_b,
-                    size: VectorSize::Size16x8,
+                    high_half: true,
                 });
                 ctx.emit(Inst::VecRRR {
                     alu_op: VecALUOp::Addp,
