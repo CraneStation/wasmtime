@@ -408,7 +408,6 @@ pub enum VecRRRLongOp {
     Umlal32,
 }
 
-
 /// A vector operation on a pair of elements with one register.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VecPairOp {
@@ -2155,9 +2154,9 @@ fn aarch64_get_regs(inst: &Inst, collector: &mut RegUsageCollector) {
             alu_op, rd, rn, rm, ..
         } => {
             match alu_op {
-                VecRRRLongOp::Umlal8
-                | VecRRRLongOp::Umlal16
-                | VecRRRLongOp::Umlal32 => collector.add_mod(rd),
+                VecRRRLongOp::Umlal8 | VecRRRLongOp::Umlal16 | VecRRRLongOp::Umlal32 => {
+                    collector.add_mod(rd)
+                }
                 _ => collector.add_def(rd),
             };
             collector.add_use(rn);
@@ -2981,9 +2980,9 @@ fn aarch64_map_regs<RUM: RegUsageMapper>(inst: &mut Inst, mapper: &RUM) {
             ..
         } => {
             match alu_op {
-                VecRRRLongOp::Umlal8
-                | VecRRRLongOp::Umlal16
-                | VecRRRLongOp::Umlal32 => map_mod(mapper, rd),
+                VecRRRLongOp::Umlal8 | VecRRRLongOp::Umlal16 | VecRRRLongOp::Umlal32 => {
+                    map_mod(mapper, rd)
+                }
                 _ => map_def(mapper, rd),
             };
             map_use(mapper, rn);
@@ -4196,42 +4195,60 @@ impl Inst {
                 high_half,
             } => {
                 let (op, dest_size, src_size) = match (alu_op, high_half) {
-                    (VecRRRLongOp::Smull8, false) =>
-                        ("smull", VectorSize::Size16x8, VectorSize::Size8x8),
-                    (VecRRRLongOp::Smull8, true) =>
-                        ("smull2", VectorSize::Size16x8, VectorSize::Size8x16),
-                    (VecRRRLongOp::Smull16, false) =>
-                        ("smull", VectorSize::Size32x4, VectorSize::Size16x4),
-                    (VecRRRLongOp::Smull16, true) =>
-                        ("smull2", VectorSize::Size32x4, VectorSize::Size16x8),
-                    (VecRRRLongOp::Smull32, false) =>
-                        ("smull", VectorSize::Size64x2, VectorSize::Size32x2),
-                    (VecRRRLongOp::Smull32, true) =>
-                        ("smull2", VectorSize::Size64x2, VectorSize::Size32x4),
-                    (VecRRRLongOp::Umull8, false) =>
-                        ("umull", VectorSize::Size16x8, VectorSize::Size8x8),
-                    (VecRRRLongOp::Umull8, true) =>
-                        ("umull2", VectorSize::Size16x8, VectorSize::Size8x16),
-                    (VecRRRLongOp::Umull16, false) =>
-                        ("umull", VectorSize::Size32x4, VectorSize::Size16x4),
-                    (VecRRRLongOp::Umull16, true) =>
-                        ("umull2", VectorSize::Size32x4, VectorSize::Size16x8),
-                    (VecRRRLongOp::Umull32, false) =>
-                        ("umull", VectorSize::Size64x2, VectorSize::Size32x2),
-                    (VecRRRLongOp::Umull32, true) =>
-                        ("umull2", VectorSize::Size64x2, VectorSize::Size32x4),
-                    (VecRRRLongOp::Umlal8, false) =>
-                        ("umlal", VectorSize::Size16x8, VectorSize::Size8x8),
-                    (VecRRRLongOp::Umlal8, true) =>
-                        ("umlal2", VectorSize::Size16x8, VectorSize::Size8x16),
-                    (VecRRRLongOp::Umlal16, false) =>
-                        ("umlal", VectorSize::Size32x4, VectorSize::Size16x4),
-                    (VecRRRLongOp::Umlal16, true) =>
-                        ("umlal2", VectorSize::Size32x4, VectorSize::Size16x8),
-                    (VecRRRLongOp::Umlal32, false) =>
-                        ("umlal", VectorSize::Size64x2, VectorSize::Size32x2),
-                    (VecRRRLongOp::Umlal32, true) =>
-                        ("umlal2", VectorSize::Size64x2, VectorSize::Size32x4),
+                    (VecRRRLongOp::Smull8, false) => {
+                        ("smull", VectorSize::Size16x8, VectorSize::Size8x8)
+                    }
+                    (VecRRRLongOp::Smull8, true) => {
+                        ("smull2", VectorSize::Size16x8, VectorSize::Size8x16)
+                    }
+                    (VecRRRLongOp::Smull16, false) => {
+                        ("smull", VectorSize::Size32x4, VectorSize::Size16x4)
+                    }
+                    (VecRRRLongOp::Smull16, true) => {
+                        ("smull2", VectorSize::Size32x4, VectorSize::Size16x8)
+                    }
+                    (VecRRRLongOp::Smull32, false) => {
+                        ("smull", VectorSize::Size64x2, VectorSize::Size32x2)
+                    }
+                    (VecRRRLongOp::Smull32, true) => {
+                        ("smull2", VectorSize::Size64x2, VectorSize::Size32x4)
+                    }
+                    (VecRRRLongOp::Umull8, false) => {
+                        ("umull", VectorSize::Size16x8, VectorSize::Size8x8)
+                    }
+                    (VecRRRLongOp::Umull8, true) => {
+                        ("umull2", VectorSize::Size16x8, VectorSize::Size8x16)
+                    }
+                    (VecRRRLongOp::Umull16, false) => {
+                        ("umull", VectorSize::Size32x4, VectorSize::Size16x4)
+                    }
+                    (VecRRRLongOp::Umull16, true) => {
+                        ("umull2", VectorSize::Size32x4, VectorSize::Size16x8)
+                    }
+                    (VecRRRLongOp::Umull32, false) => {
+                        ("umull", VectorSize::Size64x2, VectorSize::Size32x2)
+                    }
+                    (VecRRRLongOp::Umull32, true) => {
+                        ("umull2", VectorSize::Size64x2, VectorSize::Size32x4)
+                    }
+                    (VecRRRLongOp::Umlal8, false) => {
+                        ("umlal", VectorSize::Size16x8, VectorSize::Size8x8)
+                    }
+                    (VecRRRLongOp::Umlal8, true) => {
+                        ("umlal2", VectorSize::Size16x8, VectorSize::Size8x16)
+                    }
+                    (VecRRRLongOp::Umlal16, false) => {
+                        ("umlal", VectorSize::Size32x4, VectorSize::Size16x4)
+                    }
+                    (VecRRRLongOp::Umlal16, true) => {
+                        ("umlal2", VectorSize::Size32x4, VectorSize::Size16x8)
+                    }
+                    (VecRRRLongOp::Umlal32, false) => {
+                        ("umlal", VectorSize::Size64x2, VectorSize::Size32x2)
+                    }
+                    (VecRRRLongOp::Umlal32, true) => {
+                        ("umlal2", VectorSize::Size64x2, VectorSize::Size32x4)
+                    }
                 };
                 let rd = show_vreg_vector(rd.to_reg(), mb_rru, dest_size);
                 let rn = show_vreg_vector(rn, mb_rru, src_size);

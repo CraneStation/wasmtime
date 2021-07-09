@@ -288,13 +288,21 @@ fn enc_vec_rrr(top11: u32, rm: Reg, bit15_10: u32, rn: Reg, rd: Writable<Reg>) -
         | machreg_to_vec(rd.to_reg())
 }
 
-fn enc_vec_rrr_long(q: u32, u: u32, size: u32, bit14: u32, rm: Reg, rn: Reg, rd: Writable<Reg>) -> u32 {
-  debug_assert_eq!(q & 0b1, q);
-  debug_assert_eq!(u & 0b1, u);
-  debug_assert_eq!(size & 0b11, size);
-  debug_assert_eq!(bit14 & 0b1, bit14);
+fn enc_vec_rrr_long(
+    q: u32,
+    u: u32,
+    size: u32,
+    bit14: u32,
+    rm: Reg,
+    rn: Reg,
+    rd: Writable<Reg>,
+) -> u32 {
+    debug_assert_eq!(q & 0b1, q);
+    debug_assert_eq!(u & 0b1, u);
+    debug_assert_eq!(size & 0b11, size);
+    debug_assert_eq!(bit14 & 0b1, bit14);
 
-  0b0_0_0_01110_00_1_00000_100000_00000_00000
+    0b0_0_0_01110_00_1_00000_100000_00000_00000
         | q << 30
         | u << 29
         | size << 22
@@ -2206,7 +2214,15 @@ impl MachInstEmit for Inst {
                     VecRRRLongOp::Umlal16 => (0b1, 0b01, 0b0),
                     VecRRRLongOp::Umlal32 => (0b1, 0b10, 0b0),
                 };
-                sink.put4(enc_vec_rrr_long(high_half as u32, u, size, bit14, rm, rn, rd));
+                sink.put4(enc_vec_rrr_long(
+                    high_half as u32,
+                    u,
+                    size,
+                    bit14,
+                    rm,
+                    rn,
+                    rd,
+                ));
             }
             &Inst::VecRRR {
                 rd,
@@ -2288,9 +2304,9 @@ impl MachInstEmit for Inst {
                     }
                 };
                 let top11 = if is_float {
-                  top11 | enc_float_size << 1
+                    top11 | enc_float_size << 1
                 } else {
-                  top11
+                    top11
                 };
                 sink.put4(enc_vec_rrr(top11 | q << 9, rm, bit15_10, rn, rd));
             }

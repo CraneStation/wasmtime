@@ -1243,11 +1243,10 @@ pub(crate) fn maybe_input_insn_via_conv<C: LowerCtx<I = Inst>>(
     None
 }
 
-
 pub(crate) fn match_vec_long_mul<C: LowerCtx<I = Inst>>(
     c: &mut C,
     insn: IRInst,
-    ext_op: Opcode
+    ext_op: Opcode,
 ) -> Option<(VecRRRLongOp, regalloc::Reg, regalloc::Reg, bool)> {
     let inputs = insn_inputs(c, insn);
     if let Some(lhs) = maybe_input_insn(c, inputs[0], ext_op) {
@@ -1258,41 +1257,26 @@ pub(crate) fn match_vec_long_mul<C: LowerCtx<I = Inst>>(
             let rm = put_input_in_reg(c, rhs_input, NarrowValueMode::None);
             let lane_type = c.output_ty(insn, 0).lane_type();
             match (lane_type, ext_op) {
-                (I16, Opcode::SwidenLow) =>
-                    return Some((VecRRRLongOp::Smull8, rn, rm, false)),
-                (I16, Opcode::SwidenHigh) =>
-                    return Some((VecRRRLongOp::Smull8, rn, rm, true)),
-                (I16, Opcode::UwidenLow) =>
-                    return Some((VecRRRLongOp::Umull8, rn, rm, false)),
-                (I16, Opcode::UwidenHigh) =>
-                    return Some((VecRRRLongOp::Umull8, rn, rm, true)),
-                (I32, Opcode::SwidenLow) =>
-                    return Some((VecRRRLongOp::Smull16, rn, rm, false)),
-                (I32, Opcode::SwidenHigh) =>
-                    return Some((VecRRRLongOp::Smull16, rn, rm, true)),
-                (I32, Opcode::UwidenLow) =>
-                    return Some((VecRRRLongOp::Umull16, rn, rm, false)),
-                (I32, Opcode::UwidenHigh) =>
-                    return Some((VecRRRLongOp::Umull16, rn, rm, true)),
-                (I64, Opcode::SwidenLow) =>
-                    return Some((VecRRRLongOp::Smull32, rn, rm, false)),
-                (I64, Opcode::SwidenHigh) =>
-                    return Some((VecRRRLongOp::Smull32, rn, rm, true)),
-                (I64, Opcode::UwidenLow) =>
-                    return Some((VecRRRLongOp::Umull32, rn, rm, false)),
-                (I64, Opcode::UwidenHigh) =>
-                    return Some((VecRRRLongOp::Umull32, rn, rm, true)),
-                _ => {},
-             };
-         }
+                (I16, Opcode::SwidenLow) => return Some((VecRRRLongOp::Smull8, rn, rm, false)),
+                (I16, Opcode::SwidenHigh) => return Some((VecRRRLongOp::Smull8, rn, rm, true)),
+                (I16, Opcode::UwidenLow) => return Some((VecRRRLongOp::Umull8, rn, rm, false)),
+                (I16, Opcode::UwidenHigh) => return Some((VecRRRLongOp::Umull8, rn, rm, true)),
+                (I32, Opcode::SwidenLow) => return Some((VecRRRLongOp::Smull16, rn, rm, false)),
+                (I32, Opcode::SwidenHigh) => return Some((VecRRRLongOp::Smull16, rn, rm, true)),
+                (I32, Opcode::UwidenLow) => return Some((VecRRRLongOp::Umull16, rn, rm, false)),
+                (I32, Opcode::UwidenHigh) => return Some((VecRRRLongOp::Umull16, rn, rm, true)),
+                (I64, Opcode::SwidenLow) => return Some((VecRRRLongOp::Smull32, rn, rm, false)),
+                (I64, Opcode::SwidenHigh) => return Some((VecRRRLongOp::Smull32, rn, rm, true)),
+                (I64, Opcode::UwidenLow) => return Some((VecRRRLongOp::Umull32, rn, rm, false)),
+                (I64, Opcode::UwidenHigh) => return Some((VecRRRLongOp::Umull32, rn, rm, true)),
+                _ => {}
+            };
+        }
     }
     None
 }
 
-pub(crate) fn lower_i64x2_mul<C: LowerCtx<I = Inst>>(
-    c: &mut C,
-    insn: IRInst,
-) {
+pub(crate) fn lower_i64x2_mul<C: LowerCtx<I = Inst>>(c: &mut C, insn: IRInst) {
     let inputs = insn_inputs(c, insn);
     let outputs = insn_outputs(c, insn);
     let rd = get_output_reg(c, outputs[0]).regs()[0];

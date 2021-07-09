@@ -246,80 +246,86 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
         Opcode::Imul => {
             let ty = ty.unwrap();
             if ty == I128 {
-              let lhs = put_input_in_regs(ctx, inputs[0]);
-              let rhs = put_input_in_regs(ctx, inputs[1]);
-              let dst = get_output_reg(ctx, outputs[0]);
-              assert_eq!(lhs.len(), 2);
-              assert_eq!(rhs.len(), 2);
-              assert_eq!(dst.len(), 2);
+                let lhs = put_input_in_regs(ctx, inputs[0]);
+                let rhs = put_input_in_regs(ctx, inputs[1]);
+                let dst = get_output_reg(ctx, outputs[0]);
+                assert_eq!(lhs.len(), 2);
+                assert_eq!(rhs.len(), 2);
+                assert_eq!(dst.len(), 2);
 
-              // 128bit mul formula:
-              //   dst_lo = lhs_lo * rhs_lo
-              //   dst_hi = umulhi(lhs_lo, rhs_lo) + (lhs_lo * rhs_hi) + (lhs_hi * rhs_lo)
-              //
-              // We can convert the above formula into the following
-              // umulh   dst_hi, lhs_lo, rhs_lo
-              // madd    dst_hi, lhs_lo, rhs_hi, dst_hi
-              // madd    dst_hi, lhs_hi, rhs_lo, dst_hi
-              // mul     dst_lo, lhs_lo, rhs_lo
+                // 128bit mul formula:
+                //   dst_lo = lhs_lo * rhs_lo
+                //   dst_hi = umulhi(lhs_lo, rhs_lo) + (lhs_lo * rhs_hi) + (lhs_hi * rhs_lo)
+                //
+                // We can convert the above formula into the following
+                // umulh   dst_hi, lhs_lo, rhs_lo
+                // madd    dst_hi, lhs_lo, rhs_hi, dst_hi
+                // madd    dst_hi, lhs_hi, rhs_lo, dst_hi
+                // mul     dst_lo, lhs_lo, rhs_lo
 
-              ctx.emit(Inst::AluRRR {
-                  alu_op: ALUOp::UMulH,
-                  rd: dst.regs()[1],
-                  rn: lhs.regs()[0],
-                  rm: rhs.regs()[0],
-              });
-              ctx.emit(Inst::AluRRRR {
-                  alu_op: ALUOp3::MAdd64,
-                  rd: dst.regs()[1],
-                  rn: lhs.regs()[0],
-                  rm: rhs.regs()[1],
-                  ra: dst.regs()[1].to_reg(),
-              });
-              ctx.emit(Inst::AluRRRR {
-                  alu_op: ALUOp3::MAdd64,
-                  rd: dst.regs()[1],
-                  rn: lhs.regs()[1],
-                  rm: rhs.regs()[0],
-                  ra: dst.regs()[1].to_reg(),
-              });
-              ctx.emit(Inst::AluRRRR {
-                  alu_op: ALUOp3::MAdd64,
-                  rd: dst.regs()[0],
-                  rn: lhs.regs()[0],
-                  rm: rhs.regs()[0],
-                  ra: zero_reg(),
-              });
+                ctx.emit(Inst::AluRRR {
+                    alu_op: ALUOp::UMulH,
+                    rd: dst.regs()[1],
+                    rn: lhs.regs()[0],
+                    rm: rhs.regs()[0],
+                });
+                ctx.emit(Inst::AluRRRR {
+                    alu_op: ALUOp3::MAdd64,
+                    rd: dst.regs()[1],
+                    rn: lhs.regs()[0],
+                    rm: rhs.regs()[1],
+                    ra: dst.regs()[1].to_reg(),
+                });
+                ctx.emit(Inst::AluRRRR {
+                    alu_op: ALUOp3::MAdd64,
+                    rd: dst.regs()[1],
+                    rn: lhs.regs()[1],
+                    rm: rhs.regs()[0],
+                    ra: dst.regs()[1].to_reg(),
+                });
+                ctx.emit(Inst::AluRRRR {
+                    alu_op: ALUOp3::MAdd64,
+                    rd: dst.regs()[0],
+                    rn: lhs.regs()[0],
+                    rm: rhs.regs()[0],
+                    ra: zero_reg(),
+                });
             } else if ty.is_vector() {
-                for ext_op in &[Opcode::SwidenLow, Opcode::SwidenHigh,
-                                Opcode::UwidenLow, Opcode::UwidenHigh] {
-                  if let Some((alu_op, rn, rm, high_half)) = match_vec_long_mul(ctx, insn, *ext_op) {
+                for ext_op in &[
+                    Opcode::SwidenLow,
+                    Opcode::SwidenHigh,
+                    Opcode::UwidenLow,
+                    Opcode::UwidenHigh,
+                ] {
+                    if let Some((alu_op, rn, rm, high_half)) =
+                        match_vec_long_mul(ctx, insn, *ext_op)
+                    {
+                        let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
+                        ctx.emit(Inst::VecRRRLong {
+                            alu_op,
+                            rd,
+                            rn,
+                            rm,
+                            high_half,
+                        });
+                        return Ok(());
+                    }
+                }
+                if ty == I64X2 {
+                    lower_i64x2_mul(ctx, insn);
+                } else {
+                    let rn = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
+                    let rm = put_input_in_reg(ctx, inputs[1], NarrowValueMode::None);
                     let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
-                    ctx.emit(Inst::VecRRRLong {
-                        alu_op,
+                    ctx.emit(Inst::VecRRR {
+                        alu_op: VecALUOp::Mul,
                         rd,
                         rn,
                         rm,
-                        high_half,
+                        size: VectorSize::from_ty(ty),
                     });
-                    return Ok(());
-                  }
                 }
-                if ty == I64X2 {
-                  lower_i64x2_mul(ctx, insn);
-                } else {
-                  let rn = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
-                  let rm = put_input_in_reg(ctx, inputs[1], NarrowValueMode::None);
-                  let rd = get_output_reg(ctx, outputs[0]).only_reg().unwrap();
-                  ctx.emit(Inst::VecRRR {
-                      alu_op: VecALUOp::Mul,
-                      rd,
-                      rn,
-                      rm,
-                      size: VectorSize::from_ty(ty),
-                  });
-                }
-             } else {
+            } else {
                 let alu_op = choose_32_64(ty, ALUOp3::MAdd32, ALUOp3::MAdd64);
                 let rn = put_input_in_reg(ctx, inputs[0], NarrowValueMode::None);
                 let rm = put_input_in_reg(ctx, inputs[1], NarrowValueMode::None);
