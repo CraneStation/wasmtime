@@ -287,7 +287,7 @@ checksum = "ff3a1e32332db9ad29d6da34693ce9a7ac26a9edf96abb5c1788d193410031ab"
 dependencies = [
  "cap-primitives",
  "cap-std",
- "rustc_version",
+ "rustc_version 0.3.3",
  "unsafe-io",
  "winapi",
 ]
@@ -305,7 +305,7 @@ dependencies = [
  "maybe-owned",
  "once_cell",
  "posish",
- "rustc_version",
+ "rustc_version 0.3.3",
  "unsafe-io",
  "winapi",
  "winapi-util",
@@ -329,7 +329,7 @@ checksum = "7019d48ea53c5f378e0fdab0fe5f627fc00e76d65e75dffd6fb1cbc0c9b382ee"
 dependencies = [
  "cap-primitives",
  "posish",
- "rustc_version",
+ "rustc_version 0.3.3",
  "unsafe-io",
 ]
 
@@ -382,7 +382,7 @@ version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57cdfa5d50aad6cb4d44dcab6101a7f79925bd59d82ca42f38a9856a28865374"
 dependencies = [
- "rustc_version",
+ "rustc_version 0.3.3",
 ]
 
 [[package]]
@@ -1453,6 +1453,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "io-lifetimes"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "609c23089c52d7edcf39d6cfd2cf581dcea7e059f80f1d91130887dceac77c1f"
+dependencies = [
+ "libc",
+ "rustc_version 0.4.0",
+ "winapi",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1555,9 +1566,9 @@ checksum = "3576a87f2ba00f6f106fdfcd16db1d698d648a26ad8e0573cad8537c3c362d2a"
 
 [[package]]
 name = "libc"
-version = "0.2.95"
+version = "0.2.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "789da6d93f1b866ffe175afc5322a4d76c038605a1c3319bb57b06967ca98a36"
+checksum = "12b8adadd720df158f4d70dfe7ccc6adb0472d7c55ca83445f6a5ab3e36f8fb6"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -1882,9 +1893,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openvino"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cb74b3d8c653f7a9928bda494d329e6363ea0b428d3a3e5805b45ebb74ace76"
+checksum = "f5bdffdb7513e0edb1a8876e89739471405c4ef1b4fde51a8d5ffbe1d1d2f821"
 dependencies = [
  "openvino-sys",
  "thiserror",
@@ -1892,15 +1903,19 @@ dependencies = [
 
 [[package]]
 name = "openvino-finder"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "426587a131841eb1e1111b0fea96cbd4fd0fd5d7b6526fb9c41400587d1c525c"
+checksum = "46fa4b1ca518d244f2eaab6e8c42229cdcd5086fe1323db3db3817a0237a09e2"
+dependencies = [
+ "cfg-if 1.0.0",
+ "log",
+]
 
 [[package]]
 name = "openvino-sys"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83d5e5d5e913f4e9aa42b2a7ae9c8719aedb4bc0eb443bf92f07d9ee9a05e7b1"
+checksum = "8273c32d01900e47cc29f57c3c0a7e1c3a1ca9b3e974ed4a79f30012432db3a2"
 dependencies = [
  "cmake",
  "lazy_static",
@@ -2164,9 +2179,9 @@ dependencies = [
 
 [[package]]
 name = "posish"
-version = "0.6.1"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df1601f90b2342aaf3aadb891b71f584155d176b0e891bea92eeb11995e0ab25"
+checksum = "89cfd94d463bd7f94d4dc43af1117881afdc654d389a1917b41fc0326e3b0806"
 dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
@@ -2501,8 +2516,7 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 [[package]]
 name = "region"
 version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877e54ea2adcd70d80e9179344c97f93ef0dffd6b03e1f4529e6e83ab2fa9ae0"
+source = "git+https://github.com/darfink/region-rs?branch=master#4a81ab814ba626912f85145abb919532c22cdce3"
 dependencies = [
  "bitflags",
  "libc",
@@ -2579,7 +2593,16 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0dfe2087c51c460008730de8b57e6a320782fbfb312e1f4d520e6c6fae155ee"
 dependencies = [
- "semver",
+ "semver 0.11.0",
+]
+
+[[package]]
+name = "rustc_version"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
+dependencies = [
+ "semver 1.0.3",
 ]
 
 [[package]]
@@ -2643,6 +2666,12 @@ checksum = "f301af10236f6df4160f7c3f04eec6dbc70ace82d23326abad5edee88801c6b6"
 dependencies = [
  "semver-parser",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f3aac57ee7f3272d8395c6e4f502f434f0e289fcd62876f70daa008c20dcabe"
 
 [[package]]
 name = "semver-parser"
@@ -2882,16 +2911,16 @@ dependencies = [
 
 [[package]]
 name = "system-interface"
-version = "0.6.5"
+version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97a6aa8a77b9b8b533ec5a178ce0ea749c3a6cc6a79d0d38c89cd257dc4e34eb"
+checksum = "ef194146527a71113b76650b19c509b6537aa20b91f6702f1933e7b96b347736"
 dependencies = [
  "atty",
  "bitflags",
  "cap-fs-ext",
  "cap-std",
  "posish",
- "rustc_version",
+ "rustc_version 0.4.0",
  "unsafe-io",
  "winapi",
  "winx",
@@ -3192,11 +3221,12 @@ dependencies = [
 
 [[package]]
 name = "unsafe-io"
-version = "0.6.9"
+version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f372ce89b46cb10aace91021ff03f26cf97594f7515c0a8c1c2839c13814665d"
+checksum = "1598c579f79cdd11e677b3942b7bed5cb3369464cfd240f4c4a308ffaed6f5e4"
 dependencies = [
- "rustc_version",
+ "io-lifetimes",
+ "rustc_version 0.3.3",
  "winapi",
 ]
 

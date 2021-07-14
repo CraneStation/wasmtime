@@ -175,6 +175,7 @@ fn guards_present() -> Result<()> {
 }
 
 #[test]
+#[cfg(not(target_os = "openbsd"))]
 fn guards_present_pooling() -> Result<()> {
     const GUARD_SIZE: u64 = 65536;
 

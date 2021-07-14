@@ -220,6 +220,7 @@ fn test_initial_table_limits_exceeded() -> Result<()> {
 }
 
 #[test]
+#[cfg(not(target_os = "openbsd"))]
 fn test_pooling_allocator_initial_limits_exceeded() -> Result<()> {
     let mut config = Config::new();
     config.wasm_multi_memory(true);

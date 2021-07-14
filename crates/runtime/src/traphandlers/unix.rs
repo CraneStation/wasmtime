@@ -1,4 +1,5 @@
 use crate::traphandlers::{tls, wasmtime_longjmp, Trap};
+use crate::STACK_MMAP_FLAGS;
 use std::cell::RefCell;
 use std::convert::TryInto;
 use std::io;
@@ -204,6 +205,18 @@ unsafe fn get_pc(cx: *mut libc::c_void, _signum: libc::c_int) -> *const u8 {
         } else if #[cfg(all(target_os = "freebsd", target_arch = "x86_64"))] {
             let cx = &*(cx as *const libc::ucontext_t);
             cx.uc_mcontext.mc_rip as *const u8
+        } else if #[cfg(all(target_os = "openbsd", target_arch = "x86_64"))] {
+            extern "C" {
+                /// Rust `libc` does not yet have a definitionof `ucontext_t`
+                /// for OpenBSD, so we use a helper written in C instead (which
+                /// includes the appropriate header file).
+                ///
+                /// See rust-lang/libc#2189. When that merges and makes it into
+                /// a `rustc` included in an OpenBSD release, then we can remove
+                /// this C helper.
+                fn GetPCFromSignalContext(cx: *mut libc::c_void) -> *const u8;
+            }
+            GetPCFromSignalContext(cx)
         } else {
             compile_error!("unsupported platform");
         }
@@ -292,8 +305,8 @@ pub fn lazy_per_thread_init() -> Result<(), Trap> {
         let ptr = libc::mmap(
             null_mut(),
             alloc_size,
-            libc::PROT_NONE,
-            libc::MAP_PRIVATE | libc::MAP_ANON,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_PRIVATE | libc::MAP_ANON | STACK_MMAP_FLAGS,
             -1,
             0,
         );
@@ -301,15 +314,15 @@ pub fn lazy_per_thread_init() -> Result<(), Trap> {
             return Err(Trap::oom());
         }
 
-        // Prepare the stack with readable/writable memory and then register it
+        // Prepare the stack with a guard page and then register it
         // with `sigaltstack`.
         let stack_ptr = (ptr as usize + guard_size) as *mut libc::c_void;
-        let r = libc::mprotect(
-            stack_ptr,
-            MIN_STACK_SIZE,
-            libc::PROT_READ | libc::PROT_WRITE,
-        );
-        assert_eq!(r, 0, "mprotect to configure memory for sigaltstack failed");
+        #[cfg(not(target_os = "openbsd"))]
+        {
+            // On OpenBSD, `MAP_STACK` takes care of this.
+            let r = libc::mprotect(ptr, guard_size, libc::PROT_NONE);
+            assert_eq!(r, 0, "mprotect to configure memory for sigaltstack failed");
+        }
         let new_stack = libc::stack_t {
             ss_sp: stack_ptr,
             ss_flags: 0,

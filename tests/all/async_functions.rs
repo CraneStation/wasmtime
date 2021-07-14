@@ -418,6 +418,7 @@ fn fuel_eventually_finishes() {
 }
 
 #[test]
+#[cfg(not(target_os = "openbsd"))]
 fn async_with_pooling_stacks() {
     let mut config = Config::new();
     config.async_support(true);
@@ -447,6 +448,7 @@ fn async_with_pooling_stacks() {
 }
 
 #[test]
+#[cfg(not(target_os = "openbsd"))]
 fn async_host_func_with_pooling_stacks() -> Result<()> {
     let mut config = Config::new();
     config.async_support(true);

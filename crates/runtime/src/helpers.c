@@ -32,3 +32,25 @@ void wasmtime_longjmp(void *JmpBuf) {
   platform_jmp_buf *buf = (platform_jmp_buf*) JmpBuf;
   platform_longjmp(*buf, 1);
 }
+
+// On OpenBSD, the `libc` crate does not have the appropriate definitions to get
+// the faulting PC from a signal handlers's stack frame, so we provide a C
+// helper here.
+
+#ifdef __OpenBSD__
+
+#ifndef __x86_64__
+// In theory, a helper here should be all that is necessary for OpenBSD/aarch64,
+// but we haven't added that yet due to lack of a test system.
+#error "On OpenBSD, only x86-64 is supported."
+#endif  // __x86_64__
+
+#include <stdint.h>
+#include <sys/signal.h>
+
+const uint8_t *GetPCFromSignalContext(void *cx) {
+	ucontext_t *uc = (ucontext_t *)cx;
+	return (const uint8_t *)uc->sc_rip;
+}
+
+#endif  // __OpenBSD__

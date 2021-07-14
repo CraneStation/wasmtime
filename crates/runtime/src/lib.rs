@@ -121,3 +121,12 @@ pub unsafe trait Store {
     /// continue as normal.
     fn out_of_gas(&mut self) -> Result<(), Box<dyn Error + Send + Sync>>;
 }
+
+/// On OpenBSD, we need to map any memory that is used as a stack with the
+/// `MAP_STACK` flag, due to a security mitigation on that OS. This is not (yet)
+/// defined in the `libc` crate so we define it here. The value comes from
+/// <sys/mman.h> on OpenBSD.
+#[cfg(target_os = "openbsd")]
+const STACK_MMAP_FLAGS: libc::c_int = 0x4000;
+#[cfg(not(target_os = "openbsd"))]
+const STACK_MMAP_FLAGS: libc::c_int = 0;

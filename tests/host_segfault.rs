@@ -91,7 +91,7 @@ fn main() {
         return;
     }
 
-    let tests: &[(&str, fn(), bool)] = &[
+    let mut tests: Vec<(&str, fn(), bool)> = vec![
         ("normal segfault", || segfault(), false),
         (
             "make instance then segfault",
@@ -144,7 +144,9 @@ fn main() {
             },
             true,
         ),
-        (
+    ];
+    if !cfg!(target_os = "openbsd") {
+        tests.push((
             "hit async stack guard page with pooling allocator",
             || {
                 let mut config = Config::default();
@@ -161,8 +163,8 @@ fn main() {
                 unreachable!();
             },
             true,
-        ),
-    ];
+        ));
+    }
     match env::var(VAR_NAME) {
         Ok(s) => {
             let test = tests
@@ -174,7 +176,7 @@ fn main() {
         }
         Err(_) => {
             for (name, _test, stack_overflow) in tests {
-                run_test(name, *stack_overflow);
+                run_test(name, stack_overflow);
             }
         }
     }
