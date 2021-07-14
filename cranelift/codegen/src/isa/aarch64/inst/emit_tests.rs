@@ -3631,18 +3631,6 @@ fn test_aarch64_binemit() {
 
     insns.push((
         Inst::VecRRR {
-            alu_op: VecALUOp::Umlal,
-            rd: writable_vreg(9),
-            rn: vreg(20),
-            rm: vreg(17),
-            size: VectorSize::Size32x2,
-        },
-        "8982B12E",
-        "umlal v9.2d, v20.2s, v17.2s",
-    ));
-
-    insns.push((
-        Inst::VecRRR {
             alu_op: VecALUOp::Zip1,
             rd: writable_vreg(16),
             rn: vreg(12),
@@ -3690,75 +3678,219 @@ fn test_aarch64_binemit() {
     ));
 
     insns.push((
-        Inst::VecRRR {
-            alu_op: VecALUOp::Smull,
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Smull8,
             rd: writable_vreg(16),
             rn: vreg(12),
             rm: vreg(1),
-            size: VectorSize::Size8x16,
+            high_half: false,
         },
         "90C1210E",
         "smull v16.8h, v12.8b, v1.8b",
     ));
 
     insns.push((
-        Inst::VecRRR {
-            alu_op: VecALUOp::Smull,
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umull8,
+            rd: writable_vreg(15),
+            rn: vreg(11),
+            rm: vreg(2),
+            high_half: false,
+        },
+        "6FC1222E",
+        "umull v15.8h, v11.8b, v2.8b",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umlal8,
+            rd: writable_vreg(4),
+            rn: vreg(8),
+            rm: vreg(16),
+            high_half: false,
+        },
+        "0481302E",
+        "umlal v4.8h, v8.8b, v16.8b",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Smull16,
             rd: writable_vreg(2),
             rn: vreg(13),
             rm: vreg(6),
-            size: VectorSize::Size16x8,
+            high_half: false,
         },
         "A2C1660E",
         "smull v2.4s, v13.4h, v6.4h",
     ));
 
     insns.push((
-        Inst::VecRRR {
-            alu_op: VecALUOp::Smull,
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umull16,
+            rd: writable_vreg(3),
+            rn: vreg(14),
+            rm: vreg(7),
+            high_half: false,
+        },
+        "C3C1672E",
+        "umull v3.4s, v14.4h, v7.4h",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umlal16,
+            rd: writable_vreg(7),
+            rn: vreg(14),
+            rm: vreg(21),
+            high_half: false,
+        },
+        "C781752E",
+        "umlal v7.4s, v14.4h, v21.4h",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Smull32,
             rd: writable_vreg(8),
             rn: vreg(12),
             rm: vreg(14),
-            size: VectorSize::Size32x4,
+            high_half: false,
         },
         "88C1AE0E",
         "smull v8.2d, v12.2s, v14.2s",
     ));
 
     insns.push((
-        Inst::VecRRR {
-            alu_op: VecALUOp::Smull2,
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umull32,
+            rd: writable_vreg(9),
+            rn: vreg(5),
+            rm: vreg(6),
+            high_half: false,
+        },
+        "A9C0A62E",
+        "umull v9.2d, v5.2s, v6.2s",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umlal32,
+            rd: writable_vreg(9),
+            rn: vreg(20),
+            rm: vreg(17),
+            high_half: false,
+        },
+        "8982B12E",
+        "umlal v9.2d, v20.2s, v17.2s",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Smull8,
             rd: writable_vreg(16),
             rn: vreg(12),
             rm: vreg(1),
-            size: VectorSize::Size8x16,
+            high_half: true,
         },
         "90C1214E",
         "smull2 v16.8h, v12.16b, v1.16b",
     ));
 
     insns.push((
-        Inst::VecRRR {
-            alu_op: VecALUOp::Smull2,
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umull8,
+            rd: writable_vreg(29),
+            rn: vreg(22),
+            rm: vreg(10),
+            high_half: true,
+        },
+        "DDC22A6E",
+        "umull2 v29.8h, v22.16b, v10.16b",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umlal8,
+            rd: writable_vreg(1),
+            rn: vreg(5),
+            rm: vreg(15),
+            high_half: true,
+        },
+        "A1802F6E",
+        "umlal2 v1.8h, v5.16b, v15.16b",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Smull16,
             rd: writable_vreg(2),
             rn: vreg(13),
             rm: vreg(6),
-            size: VectorSize::Size16x8,
+            high_half: true,
         },
         "A2C1664E",
         "smull2 v2.4s, v13.8h, v6.8h",
     ));
 
     insns.push((
-        Inst::VecRRR {
-            alu_op: VecALUOp::Smull2,
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umull16,
+            rd: writable_vreg(19),
+            rn: vreg(18),
+            rm: vreg(17),
+            high_half: true,
+        },
+        "53C2716E",
+        "umull2 v19.4s, v18.8h, v17.8h",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umlal16,
+            rd: writable_vreg(11),
+            rn: vreg(10),
+            rm: vreg(12),
+            high_half: true,
+        },
+        "4B816C6E",
+        "umlal2 v11.4s, v10.8h, v12.8h",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Smull32,
             rd: writable_vreg(8),
             rn: vreg(12),
             rm: vreg(14),
-            size: VectorSize::Size32x4,
+            high_half: true,
         },
         "88C1AE4E",
         "smull2 v8.2d, v12.4s, v14.4s",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umull32,
+            rd: writable_vreg(4),
+            rn: vreg(12),
+            rm: vreg(16),
+            high_half: true,
+        },
+        "84C1B06E",
+        "umull2 v4.2d, v12.4s, v16.4s",
+    ));
+
+    insns.push((
+        Inst::VecRRRLong {
+            alu_op: VecRRRLongOp::Umlal32,
+            rd: writable_vreg(10),
+            rn: vreg(29),
+            rm: vreg(2),
+            high_half: true,
+        },
+        "AA83A26E",
+        "umlal2 v10.2d, v29.4s, v2.4s",
     ));
 
     insns.push((

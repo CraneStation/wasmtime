@@ -303,14 +303,8 @@ pub enum VecALUOp {
     Fmul,
     /// Add pairwise
     Addp,
-    /// Unsigned multiply add long
-    Umlal,
     /// Zip vectors (primary) [meaning, high halves]
     Zip1,
-    /// Signed multiply long (low halves)
-    Smull,
-    /// Signed multiply long (high halves)
-    Smull2,
     /// Signed saturating rounding doubling multiply returning high half
     Sqrdmulh,
 }
@@ -396,6 +390,22 @@ pub enum VecRRNarrowOp {
     Uqxtn32,
     /// Unsigned saturating extract narrow, 64-bit elements
     Uqxtn64,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum VecRRRLongOp {
+    /// Signed multiply long.
+    Smull8,
+    Smull16,
+    Smull32,
+    /// Unsigned multiply long.
+    Umull8,
+    Umull16,
+    Umull32,
+    /// Unsigned multiply add long
+    Umlal8,
+    Umlal16,
+    Umlal32,
 }
 
 /// A vector operation on a pair of elements with one register.
@@ -1081,6 +1091,16 @@ pub enum Inst {
         op: VecPairOp,
         rd: Writable<Reg>,
         rn: Reg,
+    },
+
+    /// 2-operand vector instruction that produces a result with twice the
+    /// lane width and half the number of lanes.
+    VecRRRLong {
+        alu_op: VecRRRLongOp,
+        rd: Writable<Reg>,
+        rn: Reg,
+        rm: Reg,
+        high_half: bool,
     },
 
     /// A vector ALU op.
@@ -2130,10 +2150,22 @@ fn aarch64_get_regs(inst: &Inst, collector: &mut RegUsageCollector) {
             collector.add_def(rd);
             collector.add_use(rn);
         }
+        &Inst::VecRRRLong {
+            alu_op, rd, rn, rm, ..
+        } => {
+            match alu_op {
+                VecRRRLongOp::Umlal8 | VecRRRLongOp::Umlal16 | VecRRRLongOp::Umlal32 => {
+                    collector.add_mod(rd)
+                }
+                _ => collector.add_def(rd),
+            };
+            collector.add_use(rn);
+            collector.add_use(rm);
+        }
         &Inst::VecRRR {
             alu_op, rd, rn, rm, ..
         } => {
-            if alu_op == VecALUOp::Bsl || alu_op == VecALUOp::Umlal {
+            if alu_op == VecALUOp::Bsl {
                 collector.add_mod(rd);
             } else {
                 collector.add_def(rd);
@@ -2940,6 +2972,22 @@ fn aarch64_map_regs<RUM: RegUsageMapper>(inst: &mut Inst, mapper: &RUM) {
             map_def(mapper, rd);
             map_use(mapper, rn);
         }
+        &mut Inst::VecRRRLong {
+            alu_op,
+            ref mut rd,
+            ref mut rn,
+            ref mut rm,
+            ..
+        } => {
+            match alu_op {
+                VecRRRLongOp::Umlal8 | VecRRRLongOp::Umlal16 | VecRRRLongOp::Umlal32 => {
+                    map_mod(mapper, rd)
+                }
+                _ => map_def(mapper, rd),
+            };
+            map_use(mapper, rn);
+            map_use(mapper, rm);
+        }
         &mut Inst::VecRRR {
             alu_op,
             ref mut rd,
@@ -2947,7 +2995,7 @@ fn aarch64_map_regs<RUM: RegUsageMapper>(inst: &mut Inst, mapper: &RUM) {
             ref mut rm,
             ..
         } => {
-            if alu_op == VecALUOp::Bsl || alu_op == VecALUOp::Umlal {
+            if alu_op == VecALUOp::Bsl {
                 map_mod(mapper, rd);
             } else {
                 map_def(mapper, rd);
@@ -4131,24 +4179,80 @@ impl Inst {
                     VecALUOp::Fmin => ("fmin", size),
                     VecALUOp::Fmul => ("fmul", size),
                     VecALUOp::Addp => ("addp", size),
-                    VecALUOp::Umlal => ("umlal", size),
                     VecALUOp::Zip1 => ("zip1", size),
-                    VecALUOp::Smull => ("smull", size),
-                    VecALUOp::Smull2 => ("smull2", size),
                     VecALUOp::Sqrdmulh => ("sqrdmulh", size),
                 };
-                let rd_size = match alu_op {
-                    VecALUOp::Umlal | VecALUOp::Smull | VecALUOp::Smull2 => size.widen(),
-                    _ => size,
+                let rd = show_vreg_vector(rd.to_reg(), mb_rru, size);
+                let rn = show_vreg_vector(rn, mb_rru, size);
+                let rm = show_vreg_vector(rm, mb_rru, size);
+                format!("{} {}, {}, {}", op, rd, rn, rm)
+            }
+            &Inst::VecRRRLong {
+                rd,
+                rn,
+                rm,
+                alu_op,
+                high_half,
+            } => {
+                let (op, dest_size, src_size) = match (alu_op, high_half) {
+                    (VecRRRLongOp::Smull8, false) => {
+                        ("smull", VectorSize::Size16x8, VectorSize::Size8x8)
+                    }
+                    (VecRRRLongOp::Smull8, true) => {
+                        ("smull2", VectorSize::Size16x8, VectorSize::Size8x16)
+                    }
+                    (VecRRRLongOp::Smull16, false) => {
+                        ("smull", VectorSize::Size32x4, VectorSize::Size16x4)
+                    }
+                    (VecRRRLongOp::Smull16, true) => {
+                        ("smull2", VectorSize::Size32x4, VectorSize::Size16x8)
+                    }
+                    (VecRRRLongOp::Smull32, false) => {
+                        ("smull", VectorSize::Size64x2, VectorSize::Size32x2)
+                    }
+                    (VecRRRLongOp::Smull32, true) => {
+                        ("smull2", VectorSize::Size64x2, VectorSize::Size32x4)
+                    }
+                    (VecRRRLongOp::Umull8, false) => {
+                        ("umull", VectorSize::Size16x8, VectorSize::Size8x8)
+                    }
+                    (VecRRRLongOp::Umull8, true) => {
+                        ("umull2", VectorSize::Size16x8, VectorSize::Size8x16)
+                    }
+                    (VecRRRLongOp::Umull16, false) => {
+                        ("umull", VectorSize::Size32x4, VectorSize::Size16x4)
+                    }
+                    (VecRRRLongOp::Umull16, true) => {
+                        ("umull2", VectorSize::Size32x4, VectorSize::Size16x8)
+                    }
+                    (VecRRRLongOp::Umull32, false) => {
+                        ("umull", VectorSize::Size64x2, VectorSize::Size32x2)
+                    }
+                    (VecRRRLongOp::Umull32, true) => {
+                        ("umull2", VectorSize::Size64x2, VectorSize::Size32x4)
+                    }
+                    (VecRRRLongOp::Umlal8, false) => {
+                        ("umlal", VectorSize::Size16x8, VectorSize::Size8x8)
+                    }
+                    (VecRRRLongOp::Umlal8, true) => {
+                        ("umlal2", VectorSize::Size16x8, VectorSize::Size8x16)
+                    }
+                    (VecRRRLongOp::Umlal16, false) => {
+                        ("umlal", VectorSize::Size32x4, VectorSize::Size16x4)
+                    }
+                    (VecRRRLongOp::Umlal16, true) => {
+                        ("umlal2", VectorSize::Size32x4, VectorSize::Size16x8)
+                    }
+                    (VecRRRLongOp::Umlal32, false) => {
+                        ("umlal", VectorSize::Size64x2, VectorSize::Size32x2)
+                    }
+                    (VecRRRLongOp::Umlal32, true) => {
+                        ("umlal2", VectorSize::Size64x2, VectorSize::Size32x4)
+                    }
                 };
-                let rn_size = match alu_op {
-                    VecALUOp::Smull => size.halve(),
-                    _ => size,
-                };
-                let rm_size = rn_size;
-                let rd = show_vreg_vector(rd.to_reg(), mb_rru, rd_size);
-                let rn = show_vreg_vector(rn, mb_rru, rn_size);
-                let rm = show_vreg_vector(rm, mb_rru, rm_size);
+                let rd = show_vreg_vector(rd.to_reg(), mb_rru, dest_size);
+                let rn = show_vreg_vector(rn, mb_rru, src_size);
+                let rm = show_vreg_vector(rm, mb_rru, src_size);
                 format!("{} {}, {}, {}", op, rd, rn, rm)
             }
             &Inst::VecMisc { op, rd, rn, size } => {

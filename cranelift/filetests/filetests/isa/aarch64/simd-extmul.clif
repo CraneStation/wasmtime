@@ -1,0 +1,159 @@
+test compile
+set unwind_info=false
+target aarch64
+
+function %fn1(i8x16, i8x16) -> i16x8 {
+block0(v0: i8x16, v1: i8x16):
+  v2 = swiden_low v0
+  v3 = swiden_low v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: sxtl
+; check: smull v0.8h, v0.8b, v1.8b
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn2(i8x16, i8x16) -> i16x8 {
+block0(v0: i8x16, v1: i8x16):
+  v2 = swiden_high v0
+  v3 = swiden_high v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: sxtl
+; check: smull2 v0.8h, v0.16b, v1.16b
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn3(i16x8, i16x8) -> i32x4 {
+block0(v0: i16x8, v1: i16x8):
+  v2 = swiden_low v0
+  v3 = swiden_low v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: sxtl
+; check: smull v0.4s, v0.4h, v1.4h
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn4(i16x8, i16x8) -> i32x4 {
+block0(v0: i16x8, v1: i16x8):
+  v2 = swiden_high v0
+  v3 = swiden_high v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: sxtl
+; check: smull2 v0.4s, v0.8h, v1.8h
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn5(i32x4, i32x4) -> i64x2 {
+block0(v0: i32x4, v1: i32x4):
+  v2 = swiden_low v0
+  v3 = swiden_low v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: sxtl
+; check: smull v0.2d, v0.2s, v1.2s
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn6(i32x4, i32x4) -> i64x2 {
+block0(v0: i32x4, v1: i32x4):
+  v2 = swiden_high v0
+  v3 = swiden_high v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: sxtl
+; check: smull2 v0.2d, v0.4s, v1.4s
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn7(i8x16, i8x16) -> i16x8 {
+block0(v0: i8x16, v1: i8x16):
+  v2 = uwiden_low v0
+  v3 = uwiden_low v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: uxtl
+; check: umull v0.8h, v0.8b, v1.8b
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn8(i8x16, i8x16) -> i16x8 {
+block0(v0: i8x16, v1: i8x16):
+  v2 = uwiden_high v0
+  v3 = uwiden_high v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: uxtl
+; check: umull2 v0.8h, v0.16b, v1.16b
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn9(i16x8, i16x8) -> i32x4 {
+block0(v0: i16x8, v1: i16x8):
+  v2 = uwiden_low v0
+  v3 = uwiden_low v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: uxtl
+; check: umull v0.4s, v0.4h, v1.4h
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn10(i16x8, i16x8) -> i32x4 {
+block0(v0: i16x8, v1: i16x8):
+  v2 = uwiden_high v0
+  v3 = uwiden_high v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: uxtl
+; check: umull2 v0.4s, v0.8h, v1.8h
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn11(i32x4, i32x4) -> i64x2 {
+block0(v0: i32x4, v1: i32x4):
+  v2 = uwiden_low v0
+  v3 = uwiden_low v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: uxtl
+; check: umull v0.2d, v0.2s, v1.2s
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret
+
+function %fn12(i32x4, i32x4) -> i64x2 {
+block0(v0: i32x4, v1: i32x4):
+  v2 = uwiden_high v0
+  v3 = uwiden_high v1
+  v4 = imul v2, v3
+  return v4
+}
+
+; check-not: uxtl2
+; check: umull2 v0.2d, v0.4s, v1.4s
+; nextln: ldp fp, lr, [sp], #16
+; nextln: ret

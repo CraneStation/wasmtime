@@ -288,6 +288,30 @@ fn enc_vec_rrr(top11: u32, rm: Reg, bit15_10: u32, rn: Reg, rd: Writable<Reg>) -
         | machreg_to_vec(rd.to_reg())
 }
 
+fn enc_vec_rrr_long(
+    q: u32,
+    u: u32,
+    size: u32,
+    bit14: u32,
+    rm: Reg,
+    rn: Reg,
+    rd: Writable<Reg>,
+) -> u32 {
+    debug_assert_eq!(q & 0b1, q);
+    debug_assert_eq!(u & 0b1, u);
+    debug_assert_eq!(size & 0b11, size);
+    debug_assert_eq!(bit14 & 0b1, bit14);
+
+    0b0_0_0_01110_00_1_00000_100000_00000_00000
+        | q << 30
+        | u << 29
+        | size << 22
+        | bit14 << 14
+        | (machreg_to_vec(rm) << 16)
+        | (machreg_to_vec(rn) << 5)
+        | machreg_to_vec(rd.to_reg())
+}
+
 fn enc_bit_rr(size: u32, opcode2: u32, opcode1: u32, rn: Reg, rd: Writable<Reg>) -> u32 {
     (0b01011010110 << 21)
         | size << 31
@@ -2172,6 +2196,34 @@ impl MachInstEmit for Inst {
 
                 sink.put4(enc_vec_rr_pair(bits_12_16, rd, rn));
             }
+            &Inst::VecRRRLong {
+                rd,
+                rn,
+                rm,
+                alu_op,
+                high_half,
+            } => {
+                let (u, size, bit14) = match alu_op {
+                    VecRRRLongOp::Smull8 => (0b0, 0b00, 0b1),
+                    VecRRRLongOp::Smull16 => (0b0, 0b01, 0b1),
+                    VecRRRLongOp::Smull32 => (0b0, 0b10, 0b1),
+                    VecRRRLongOp::Umull8 => (0b1, 0b00, 0b1),
+                    VecRRRLongOp::Umull16 => (0b1, 0b01, 0b1),
+                    VecRRRLongOp::Umull32 => (0b1, 0b10, 0b1),
+                    VecRRRLongOp::Umlal8 => (0b1, 0b00, 0b0),
+                    VecRRRLongOp::Umlal16 => (0b1, 0b01, 0b0),
+                    VecRRRLongOp::Umlal32 => (0b1, 0b10, 0b0),
+                };
+                sink.put4(enc_vec_rrr_long(
+                    high_half as u32,
+                    u,
+                    size,
+                    bit14,
+                    rm,
+                    rn,
+                    rd,
+                ));
+            }
             &Inst::VecRRR {
                 rd,
                 rn,
@@ -2241,13 +2293,7 @@ impl MachInstEmit for Inst {
                     VecALUOp::Fmin => (0b000_01110_10_1, 0b111101),
                     VecALUOp::Fmul => (0b001_01110_00_1, 0b110111),
                     VecALUOp::Addp => (0b000_01110_00_1 | enc_size << 1, 0b101111),
-                    VecALUOp::Umlal => {
-                        debug_assert!(!size.is_128bits());
-                        (0b001_01110_00_1 | enc_size << 1, 0b100000)
-                    }
                     VecALUOp::Zip1 => (0b01001110_00_0 | enc_size << 1, 0b001110),
-                    VecALUOp::Smull => (0b000_01110_00_1 | enc_size << 1, 0b110000),
-                    VecALUOp::Smull2 => (0b010_01110_00_1 | enc_size << 1, 0b110000),
                     VecALUOp::Sqrdmulh => {
                         debug_assert!(
                             size.lane_size() == ScalarSize::Size16
@@ -2257,12 +2303,12 @@ impl MachInstEmit for Inst {
                         (0b001_01110_00_1 | enc_size << 1, 0b101101)
                     }
                 };
-                let top11 = match alu_op {
-                    VecALUOp::Smull | VecALUOp::Smull2 => top11,
-                    _ if is_float => top11 | (q << 9) | enc_float_size << 1,
-                    _ => top11 | (q << 9),
+                let top11 = if is_float {
+                    top11 | enc_float_size << 1
+                } else {
+                    top11
                 };
-                sink.put4(enc_vec_rrr(top11, rm, bit15_10, rn, rd));
+                sink.put4(enc_vec_rrr(top11 | q << 9, rm, bit15_10, rn, rd));
             }
             &Inst::VecLoadReplicate { rd, rn, size } => {
                 let (q, size) = size.enc_size();

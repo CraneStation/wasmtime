@@ -1243,6 +1243,150 @@ pub(crate) fn maybe_input_insn_via_conv<C: LowerCtx<I = Inst>>(
     None
 }
 
+pub(crate) fn match_vec_long_mul<C: LowerCtx<I = Inst>>(
+    c: &mut C,
+    insn: IRInst,
+    ext_op: Opcode,
+) -> Option<(VecRRRLongOp, regalloc::Reg, regalloc::Reg, bool)> {
+    let inputs = insn_inputs(c, insn);
+    if let Some(lhs) = maybe_input_insn(c, inputs[0], ext_op) {
+        if let Some(rhs) = maybe_input_insn(c, inputs[1], ext_op) {
+            let lhs_input = insn_inputs(c, lhs)[0];
+            let rhs_input = insn_inputs(c, rhs)[0];
+            let rn = put_input_in_reg(c, lhs_input, NarrowValueMode::None);
+            let rm = put_input_in_reg(c, rhs_input, NarrowValueMode::None);
+            let lane_type = c.output_ty(insn, 0).lane_type();
+            match (lane_type, ext_op) {
+                (I16, Opcode::SwidenLow) => return Some((VecRRRLongOp::Smull8, rn, rm, false)),
+                (I16, Opcode::SwidenHigh) => return Some((VecRRRLongOp::Smull8, rn, rm, true)),
+                (I16, Opcode::UwidenLow) => return Some((VecRRRLongOp::Umull8, rn, rm, false)),
+                (I16, Opcode::UwidenHigh) => return Some((VecRRRLongOp::Umull8, rn, rm, true)),
+                (I32, Opcode::SwidenLow) => return Some((VecRRRLongOp::Smull16, rn, rm, false)),
+                (I32, Opcode::SwidenHigh) => return Some((VecRRRLongOp::Smull16, rn, rm, true)),
+                (I32, Opcode::UwidenLow) => return Some((VecRRRLongOp::Umull16, rn, rm, false)),
+                (I32, Opcode::UwidenHigh) => return Some((VecRRRLongOp::Umull16, rn, rm, true)),
+                (I64, Opcode::SwidenLow) => return Some((VecRRRLongOp::Smull32, rn, rm, false)),
+                (I64, Opcode::SwidenHigh) => return Some((VecRRRLongOp::Smull32, rn, rm, true)),
+                (I64, Opcode::UwidenLow) => return Some((VecRRRLongOp::Umull32, rn, rm, false)),
+                (I64, Opcode::UwidenHigh) => return Some((VecRRRLongOp::Umull32, rn, rm, true)),
+                _ => {}
+            };
+        }
+    }
+    None
+}
+
+pub(crate) fn lower_i64x2_mul<C: LowerCtx<I = Inst>>(c: &mut C, insn: IRInst) {
+    let inputs = insn_inputs(c, insn);
+    let outputs = insn_outputs(c, insn);
+    let rd = get_output_reg(c, outputs[0]).regs()[0];
+    let rn = put_input_in_regs(c, inputs[0]).regs()[0];
+    let rm = put_input_in_regs(c, inputs[1]).regs()[0];
+
+    let tmp1 = c.alloc_tmp(I64X2).only_reg().unwrap();
+    let tmp2 = c.alloc_tmp(I64X2).only_reg().unwrap();
+
+    // This I64X2 multiplication is performed with several 32-bit
+    // operations.
+
+    // 64-bit numbers x and y, can be represented as:
+    //   x = a + 2^32(b)
+    //   y = c + 2^32(d)
+
+    // A 64-bit multiplication is:
+    //   x * y = ac + 2^32(ad + bc) + 2^64(bd)
+    // note: `2^64(bd)` can be ignored, the value is too large to fit in
+    // 64 bits.
+
+    // This sequence implements a I64X2 multiply, where the registers
+    // `rn` and `rm` are split up into 32-bit components:
+    //   rn = |d|c|b|a|
+    //   rm = |h|g|f|e|
+    //
+    //   rn * rm = |cg + 2^32(ch + dg)|ae + 2^32(af + be)|
+    //
+    //  The sequence is:
+    //  rev64 rd.4s, rm.4s
+    //  mul rd.4s, rd.4s, rn.4s
+    //  xtn tmp1.2s, rn.2d
+    //  addp rd.4s, rd.4s, rd.4s
+    //  xtn tmp2.2s, rm.2d
+    //  shll rd.2d, rd.2s, #32
+    //  umlal rd.2d, tmp2.2s, tmp1.2s
+
+    // Reverse the 32-bit elements in the 64-bit words.
+    //   rd = |g|h|e|f|
+    c.emit(Inst::VecMisc {
+        op: VecMisc2::Rev64,
+        rd,
+        rn: rm,
+        size: VectorSize::Size32x4,
+    });
+
+    // Calculate the high half components.
+    //   rd = |dg|ch|be|af|
+    //
+    // Note that this 32-bit multiply of the high half
+    // discards the bits that would overflow, same as
+    // if 64-bit operations were used. Also the Shll
+    // below would shift out the overflow bits anyway.
+    c.emit(Inst::VecRRR {
+        alu_op: VecALUOp::Mul,
+        rd,
+        rn: rd.to_reg(),
+        rm: rn,
+        size: VectorSize::Size32x4,
+    });
+
+    // Extract the low half components of rn.
+    //   tmp1 = |c|a|
+    c.emit(Inst::VecRRNarrow {
+        op: VecRRNarrowOp::Xtn64,
+        rd: tmp1,
+        rn,
+        high_half: false,
+    });
+
+    // Sum the respective high half components.
+    //   rd = |dg+ch|be+af||dg+ch|be+af|
+    c.emit(Inst::VecRRR {
+        alu_op: VecALUOp::Addp,
+        rd: rd,
+        rn: rd.to_reg(),
+        rm: rd.to_reg(),
+        size: VectorSize::Size32x4,
+    });
+
+    // Extract the low half components of rm.
+    //   tmp2 = |g|e|
+    c.emit(Inst::VecRRNarrow {
+        op: VecRRNarrowOp::Xtn64,
+        rd: tmp2,
+        rn: rm,
+        high_half: false,
+    });
+
+    // Shift the high half components, into the high half.
+    //   rd = |dg+ch << 32|be+af << 32|
+    c.emit(Inst::VecRRLong {
+        op: VecRRLongOp::Shll32,
+        rd,
+        rn: rd.to_reg(),
+        high_half: false,
+    });
+
+    // Multiply the low components together, and accumulate with the high
+    // half.
+    //   rd = |rd[1] + cg|rd[0] + ae|
+    c.emit(Inst::VecRRRLong {
+        alu_op: VecRRRLongOp::Umlal32,
+        rd,
+        rn: tmp2.to_reg(),
+        rm: tmp1.to_reg(),
+        high_half: false,
+    });
+}
+
 /// Specifies what [lower_icmp] should do when lowering
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum IcmpOutput {
