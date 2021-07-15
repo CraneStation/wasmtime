@@ -21,7 +21,6 @@ use crate::isa::aarch64::AArch64Backend;
 use super::lower_inst;
 
 use crate::data_value::DataValue;
-use crate::ir::instructions::Opcode::Icmp;
 use log::{debug, trace};
 use regalloc::{Reg, Writable};
 use smallvec::SmallVec;
@@ -1256,17 +1255,17 @@ pub(crate) fn maybe_input_insn_via_conv<C: LowerCtx<I = Inst>>(
 /// Specifies what [lower_icmp] should do when lowering
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum IcmpOutput {
-    /// Set flags, discarding the results. The flag to be used needs to be checked
-    /// in [IcmpResult]
-    Flags,
-    /// Materializes the results into a register. The flags set may be incorrect
+    /// Lowers the comparison into a cond code, discarding the results. The cond code emitted can
+    /// be checked in the resulting [IcmpResult].
+    CondCode,
+    /// Materializes the results into a register. This may overwrite any flags previously set.
     Register(Writable<Reg>),
 }
 
 impl IcmpOutput {
     pub fn reg(&self) -> Option<Writable<Reg>> {
         match self {
-            IcmpOutput::Flags => None,
+            IcmpOutput::CondCode => None,
             IcmpOutput::Register(reg) => Some(*reg),
         }
     }
@@ -1275,8 +1274,8 @@ impl IcmpOutput {
 /// The output of an Icmp lowering.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum IcmpResult {
-    /// The result was output into the flag corresponding with this [Cond]. Other flags are left in
-    /// an undefined state.
+    /// The result was output into the given [Cond]. Callers may perform operations using this [Cond]
+    /// and its inverse, other [Cond]'s are not guaranteed to be correct.
     CondCode(Cond),
     /// The result was materialized into the output register.
     Register,
@@ -1286,7 +1285,7 @@ impl IcmpResult {
     pub fn unwrap_cond(&self) -> Cond {
         match self {
             IcmpResult::CondCode(c) => *c,
-            _ => panic!("Unwrapped flag, but IcmpResult was {:?}", self),
+            _ => panic!("Unwrapped cond, but IcmpResult was {:?}", self),
         }
     }
 }
@@ -1318,6 +1317,7 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
         (false, true) => NarrowValueMode::SignExtend64,
         (false, false) => NarrowValueMode::ZeroExtend64,
     };
+    let mut should_materialize = output.reg().is_some();
 
     let out_condcode = if ty == I128 {
         let lhs = put_input_in_regs(ctx, inputs[0]);
@@ -1351,10 +1351,6 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
                     rn: tmp1.to_reg(),
                     rm: tmp2.to_reg(),
                 });
-
-                if let IcmpOutput::Register(rd) = output {
-                    materialize_bool_result(ctx, insn, rd, cond);
-                }
             }
             IntCC::Overflow | IntCC::NotOverflow => {
                 // We can do an 128bit add while throwing away the results
@@ -1376,10 +1372,6 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
                     rn: lhs.regs()[1],
                     rm: rhs.regs()[1],
                 });
-
-                if let IcmpOutput::Register(rd) = output {
-                    materialize_bool_result(ctx, insn, rd, cond);
-                }
             }
             _ => {
                 // cmp     lhs_lo, rhs_lo
@@ -1412,7 +1404,7 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
                     rm: tmp2.to_reg(),
                 });
 
-                if output == IcmpOutput::Flags {
+                if output == IcmpOutput::CondCode {
                     // We only need to guarantee that the flags for `cond` are correct, so we can
                     // compare rd with 0 or 1
 
@@ -1443,11 +1435,16 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
                         rm,
                     });
                 }
+
+                // Prevent a second materialize_bool_result to be emitted at the end of the function
+                should_materialize = false;
             }
         }
         cond
     } else if ty.is_vector() {
-        assert_ne!(output, IcmpOutput::Flags);
+        assert_ne!(output, IcmpOutput::CondCode);
+        should_materialize = false;
+
         let rn = put_input_in_reg(ctx, inputs[0], narrow_mode);
         let rm = put_input_in_reg(ctx, inputs[1], narrow_mode);
         lower_vector_compare(ctx, rd, rn, rm, ty, cond)?;
@@ -1496,17 +1493,20 @@ pub(crate) fn lower_icmp<C: LowerCtx<I = Inst>>(
 
         let alu_op = choose_32_64(ty, ALUOp::SubS32, ALUOp::SubS64);
         ctx.emit(alu_inst_imm12(alu_op, writable_zero_reg(), rn, rm));
-
-        if let IcmpOutput::Register(rd) = output {
-            materialize_bool_result(ctx, insn, rd, cond);
-        }
         cond
     };
+
+    // Most of the comparisons above produce flags by default, if the caller requested the result
+    // in a register we materialize those flags into a register. Some branches do end up producing
+    // the result as a register by default, so we ignore those.
+    if should_materialize {
+        materialize_bool_result(ctx, insn, rd, cond);
+    }
 
     Ok(match output {
         // We currently never emit a different register than what was asked for
         IcmpOutput::Register(_) => IcmpResult::Register,
-        IcmpOutput::Flags => IcmpResult::CondCode(out_condcode),
+        IcmpOutput::CondCode => IcmpResult::CondCode(out_condcode),
     })
 }
 
