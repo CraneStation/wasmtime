@@ -10,10 +10,7 @@ block0(v0: i64):
   return v3
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: add x0, x0, x0, LSL 3
-; nextln: ldp fp, lr, [sp], #16
+; check: add x0, x0, x0, LSL 3
 ; nextln: ret
 
 function %f(i32) -> i32 {
@@ -23,8 +20,5 @@ block0(v0: i32):
   return v2
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: lsl w0, w0, #21
-; nextln: ldp fp, lr, [sp], #16
+; check: lsl w0, w0, #21
 ; nextln: ret

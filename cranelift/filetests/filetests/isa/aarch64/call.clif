@@ -100,9 +100,7 @@ block0(v0: i8):
     return v1, v1, v1, v1, v1, v1, v1, v1, v0
 }
 
-; check:  stp fp, lr, [sp, #-16]!
-; nextln:  mov fp, sp
-; nextln:  mov x9, x0
+; check:  mov x9, x0
 ; nextln:  mov x8, x1
 ; nextln:  movz x0, #42
 ; nextln:  movz x1, #42
@@ -113,7 +111,6 @@ block0(v0: i8):
 ; nextln:  movz x6, #42
 ; nextln:  movz x7, #42
 ; nextln:  sturb w9, [x8]
-; nextln:  ldp fp, lr, [sp], #16
 ; nextln:  ret
 
 function %f8() {
@@ -259,10 +256,7 @@ block0(v0: i128, v1: i64):
     return v3
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: mov x0, x1
-; nextln: ldp fp, lr, [sp], #16
+; check: mov x0, x1
 ; nextln: ret
 
 
@@ -295,12 +289,8 @@ block0(v0: i64, v1: i128):
     return v2
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: mov x0, x2
-; nextln: ldp fp, lr, [sp], #16
+; check: mov x0, x2
 ; nextln: ret
-
 
 
 function %f12_call(i64) -> i64 {
@@ -333,10 +323,7 @@ block0(v0: i64, v1: i128):
     return v2
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: mov x0, x1
-; nextln: ldp fp, lr, [sp], #16
+; check: mov x0, x1
 ; nextln: ret
 
 
@@ -470,12 +457,9 @@ block0:
     return v0, v1
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: mov x1, x0
+; check: mov x1, x0
 ; nextln: movz x0, #0
 ; nextln: movz x2, #1
 ; nextln: stur w2, [x1]
-; nextln: ldp fp, lr, [sp], #16
 ; nextln: ret
 

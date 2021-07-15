@@ -10,11 +10,8 @@ block0(v0: i8):
   return v3
 }
 
-; check:  stp fp, lr, [sp, #-16]!
-; nextln:  mov fp, sp
-; nextln:  movz x1, #42
+; check:  movz x1, #42
 ; nextln:  add x0, x1, x0, SXTB
-; nextln:  ldp fp, lr, [sp], #16
 ; nextln:  ret
 
 

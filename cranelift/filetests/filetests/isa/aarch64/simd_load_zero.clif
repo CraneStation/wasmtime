@@ -9,12 +9,9 @@ block0:
   return v1
 }
 
-; check:  stp fp, lr, [sp, #-16]!
-; nextln:  mov fp, sp
-; nextln:  movz x0, #1
+; check:  movz x0, #1
 ; nextln:  movk x0, #1, LSL #48
 ; nextln:  fmov d0, x0
-; nextln:  ldp fp, lr, [sp], #16
 ; nextln:  ret
 
 function %f2() -> i32x4 {
@@ -24,9 +21,6 @@ block0:
   return v1
 }
 
-; check:  stp fp, lr, [sp, #-16]!
-; nextln:  mov fp, sp
-; nextln:  movz x0, #42679
+; check:  movz x0, #42679
 ; nextln:  fmov s0, w0
-; nextln:  ldp fp, lr, [sp], #16
 ; nextln:  ret

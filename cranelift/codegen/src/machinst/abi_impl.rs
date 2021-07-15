@@ -429,20 +429,35 @@ pub trait ABIMachineSpec {
     /// Generate a probestack call.
     fn gen_probestack(_frame_size: u32) -> SmallInstVec<Self::I>;
 
-    /// Generate a clobber-save sequence. This takes the list of *all* registers
-    /// written/modified by the function body. The implementation here is
-    /// responsible for determining which of these are callee-saved according to
-    /// the ABI. It should return a sequence of instructions that "push" or
-    /// otherwise save these values to the stack. The sequence of instructions
-    /// should adjust the stack pointer downward, and should align as necessary
-    /// according to ABI requirements.
+    /// Get all clobbered registers that are callee-saved according to the ABI; the result
+    /// contains the registers in a sorted order.
+    fn get_clobbered_callee_saves(
+        call_conv: isa::CallConv,
+        regs: &Set<Writable<RealReg>>,
+    ) -> Vec<Writable<RealReg>>;
+
+    /// Determine whether it is necessary to generate the usual frame-setup
+    /// sequence (refer to gen_prologue_frame_setup()).
+    fn is_frame_setup_needed(
+        is_leaf: bool,
+        stack_args_size: u32,
+        num_clobbered_callee_saves: usize,
+        fixed_frame_storage_size: u32,
+    ) -> bool;
+
+    /// Generate a clobber-save sequence. The implementation here should return
+    /// a sequence of instructions that "push" or otherwise save to the stack all
+    /// registers written/modified by the function body that are callee-saved.
+    /// The sequence of instructions should adjust the stack pointer downward,
+    /// and should align as necessary according to ABI requirements.
     ///
     /// Returns stack bytes used as well as instructions. Does not adjust
     /// nominal SP offset; caller will do that.
     fn gen_clobber_save(
         call_conv: isa::CallConv,
+        setup_frame: bool,
         flags: &settings::Flags,
-        clobbers: &Set<Writable<RealReg>>,
+        clobbered_callee_saves: &Vec<Writable<RealReg>>,
         fixed_frame_storage_size: u32,
         outgoing_args_size: u32,
     ) -> (u64, SmallVec<[Self::I; 16]>);
@@ -616,6 +631,8 @@ pub struct ABICalleeImpl<M: ABIMachineSpec> {
     /// Are we to invoke the probestack function in the prologue? If so,
     /// what is the minimum size at which we must invoke it?
     probestack_min_frame: Option<u32>,
+    /// Whether it is necessary to generate the usual frame-setup sequence.
+    setup_frame: bool,
 
     _mach: PhantomData<M>,
 }
@@ -707,6 +724,7 @@ impl<M: ABIMachineSpec> ABICalleeImpl<M> {
             is_leaf: f.is_leaf(),
             stack_limit,
             probestack_min_frame,
+            setup_frame: true,
             _mach: PhantomData,
         })
     }
@@ -1249,12 +1267,6 @@ impl<M: ABIMachineSpec> ABICallee for ABICalleeImpl<M> {
     }
 
     fn gen_prologue(&mut self) -> SmallInstVec<Self::I> {
-        let mut insts = smallvec![];
-        if !self.call_conv.extends_baldrdash() {
-            // set up frame
-            insts.extend(M::gen_prologue_frame_setup(&self.flags).into_iter());
-        }
-
         let bytes = M::word_bytes();
         let mut total_stacksize = self.stackslots_size + bytes * self.spillslots.unwrap() as u32;
         if self.call_conv.extends_baldrdash() {
@@ -1266,8 +1278,23 @@ impl<M: ABIMachineSpec> ABICallee for ABICalleeImpl<M> {
         }
         let mask = M::stack_align(self.call_conv) - 1;
         let total_stacksize = (total_stacksize + mask) & !mask; // 16-align the stack.
+        let clobbered_callee_saves = M::get_clobbered_callee_saves(self.call_conv, &self.clobbered);
+        let mut insts = smallvec![];
 
         if !self.call_conv.extends_baldrdash() {
+            self.fixed_frame_storage_size += total_stacksize;
+            self.setup_frame = M::is_frame_setup_needed(
+                self.is_leaf,
+                self.stack_args_size(),
+                clobbered_callee_saves.len(),
+                self.fixed_frame_storage_size,
+            );
+
+            if self.setup_frame {
+                // set up frame
+                insts.extend(M::gen_prologue_frame_setup(&self.flags).into_iter());
+            }
+
             // Leaf functions with zero stack don't need a stack check if one's
             // specified, otherwise always insert the stack check.
             if total_stacksize > 0 || !self.is_leaf {
@@ -1281,16 +1308,14 @@ impl<M: ABIMachineSpec> ABICallee for ABICalleeImpl<M> {
                     }
                 }
             }
-            if total_stacksize > 0 {
-                self.fixed_frame_storage_size += total_stacksize;
-            }
         }
 
         // Save clobbered registers.
         let (clobber_size, clobber_insts) = M::gen_clobber_save(
             self.call_conv,
+            self.setup_frame,
             &self.flags,
-            &self.clobbered,
+            &clobbered_callee_saves,
             self.fixed_frame_storage_size,
             self.outgoing_args_size,
         );
@@ -1330,7 +1355,10 @@ impl<M: ABIMachineSpec> ABICallee for ABICalleeImpl<M> {
         // offset for the rest of the body.
 
         if !self.call_conv.extends_baldrdash() {
-            insts.extend(M::gen_epilogue_frame_restore(&self.flags));
+            if self.setup_frame {
+                insts.extend(M::gen_epilogue_frame_restore(&self.flags));
+            }
+
             insts.push(M::gen_ret());
         }
 

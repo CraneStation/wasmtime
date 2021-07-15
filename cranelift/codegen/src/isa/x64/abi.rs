@@ -496,16 +496,15 @@ impl ABIMachineSpec for X64ABIMachineSpec {
     }
 
     fn gen_clobber_save(
-        call_conv: isa::CallConv,
+        _call_conv: isa::CallConv,
+        _setup_frame: bool,
         flags: &settings::Flags,
-        clobbers: &Set<Writable<RealReg>>,
+        clobbered_callee_saves: &Vec<Writable<RealReg>>,
         fixed_frame_storage_size: u32,
         _outgoing_args_size: u32,
     ) -> (u64, SmallVec<[Self::I; 16]>) {
         let mut insts = SmallVec::new();
-        // Find all clobbered registers that are callee-save.
-        let clobbered = get_callee_saves(&call_conv, clobbers);
-        let clobbered_size = compute_clobber_size(&clobbered);
+        let clobbered_size = compute_clobber_size(&clobbered_callee_saves);
 
         if flags.unwind_info() {
             // Emit unwind info: start the frame. The frame (from unwind
@@ -534,7 +533,7 @@ impl ABIMachineSpec for X64ABIMachineSpec {
         // Store each clobbered register in order at offsets from RSP,
         // placing them above the fixed frame slots.
         let mut cur_offset = fixed_frame_storage_size;
-        for reg in &clobbered {
+        for reg in clobbered_callee_saves {
             let r_reg = reg.to_reg();
             let off = cur_offset;
             match r_reg.get_class() {
@@ -579,14 +578,14 @@ impl ABIMachineSpec for X64ABIMachineSpec {
     ) -> SmallVec<[Self::I; 16]> {
         let mut insts = SmallVec::new();
 
-        let clobbered = get_callee_saves(&call_conv, clobbers);
-        let stack_size = fixed_frame_storage_size + compute_clobber_size(&clobbered);
+        let clobbered_callee_saves = Self::get_clobbered_callee_saves(call_conv, clobbers);
+        let stack_size = fixed_frame_storage_size + compute_clobber_size(&clobbered_callee_saves);
 
         // Restore regs by loading from offsets of RSP. RSP will be
         // returned to nominal-RSP at this point, so we can use the
         // same offsets that we used when saving clobbers above.
         let mut cur_offset = fixed_frame_storage_size;
-        for reg in &clobbered {
+        for reg in &clobbered_callee_saves {
             let rreg = reg.to_reg();
             match rreg.get_class() {
                 RegClass::I64 => {
@@ -797,6 +796,47 @@ impl ABIMachineSpec for X64ABIMachineSpec {
             ir::ArgumentExtension::None
         }
     }
+
+    fn get_clobbered_callee_saves(
+        call_conv: CallConv,
+        regs: &Set<Writable<RealReg>>,
+    ) -> Vec<Writable<RealReg>> {
+        let mut regs: Vec<Writable<RealReg>> = match call_conv {
+            CallConv::BaldrdashSystemV | CallConv::Baldrdash2020 => regs
+                .iter()
+                .cloned()
+                .filter(|r| is_callee_save_baldrdash(r.to_reg()))
+                .collect(),
+            CallConv::BaldrdashWindows => {
+                todo!("baldrdash windows");
+            }
+            CallConv::Fast | CallConv::Cold | CallConv::SystemV | CallConv::WasmtimeSystemV => regs
+                .iter()
+                .cloned()
+                .filter(|r| is_callee_save_systemv(r.to_reg()))
+                .collect(),
+            CallConv::WindowsFastcall | CallConv::WasmtimeFastcall => regs
+                .iter()
+                .cloned()
+                .filter(|r| is_callee_save_fastcall(r.to_reg()))
+                .collect(),
+            CallConv::Probestack => todo!("probestack?"),
+            CallConv::AppleAarch64 | CallConv::WasmtimeAppleAarch64 => unreachable!(),
+        };
+        // Sort registers for deterministic code output. We can do an unstable sort because the
+        // registers will be unique (there are no dups).
+        regs.sort_unstable_by_key(|r| r.to_reg().get_index());
+        regs
+    }
+
+    fn is_frame_setup_needed(
+        _is_leaf: bool,
+        _stack_args_size: u32,
+        _num_clobbered_callee_saves: usize,
+        _fixed_frame_storage_size: u32,
+    ) -> bool {
+        true
+    }
 }
 
 impl From<StackAMode> for SyntheticAmode {
@@ -982,35 +1022,6 @@ fn is_callee_save_fastcall(r: RealReg) -> bool {
         },
         _ => panic!("Unknown register class: {:?}", r.get_class()),
     }
-}
-
-fn get_callee_saves(call_conv: &CallConv, regs: &Set<Writable<RealReg>>) -> Vec<Writable<RealReg>> {
-    let mut regs: Vec<Writable<RealReg>> = match call_conv {
-        CallConv::BaldrdashSystemV | CallConv::Baldrdash2020 => regs
-            .iter()
-            .cloned()
-            .filter(|r| is_callee_save_baldrdash(r.to_reg()))
-            .collect(),
-        CallConv::BaldrdashWindows => {
-            todo!("baldrdash windows");
-        }
-        CallConv::Fast | CallConv::Cold | CallConv::SystemV | CallConv::WasmtimeSystemV => regs
-            .iter()
-            .cloned()
-            .filter(|r| is_callee_save_systemv(r.to_reg()))
-            .collect(),
-        CallConv::WindowsFastcall | CallConv::WasmtimeFastcall => regs
-            .iter()
-            .cloned()
-            .filter(|r| is_callee_save_fastcall(r.to_reg()))
-            .collect(),
-        CallConv::Probestack => todo!("probestack?"),
-        CallConv::AppleAarch64 | CallConv::WasmtimeAppleAarch64 => unreachable!(),
-    };
-    // Sort registers for deterministic code output. We can do an unstable sort because the
-    // registers will be unique (there are no dups).
-    regs.sort_unstable_by_key(|r| r.to_reg().get_index());
-    regs
 }
 
 fn compute_clobber_size(clobbers: &Vec<Writable<RealReg>>) -> u32 {

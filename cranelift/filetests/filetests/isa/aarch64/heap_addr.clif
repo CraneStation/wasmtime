@@ -14,9 +14,7 @@ block0(v0: i64, v1: i32):
 }
 
 ; check: Block 0:
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: ldr w2, [x0]
+; check: ldr w2, [x0]
 ; nextln: add w2, w2, #0
 ; nextln: subs wzr, w1, w2
 ; nextln: b.ls label1 ; b label2
@@ -25,7 +23,6 @@ block0(v0: i64, v1: i32):
 ; nextln: subs wzr, w1, w2
 ; nextln: movz x1, #0
 ; nextln: csel x0, x1, x0, hi
-; nextln: ldp fp, lr, [sp], #16
 ; nextln: ret
 ; check: Block 2:
 ; check: udf
@@ -40,16 +37,13 @@ block0(v0: i64, v1: i32):
 }
 
 ; check: Block 0:
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: subs wzr, w1, #65536
+; check: subs wzr, w1, #65536
 ; nextln: b.ls label1 ; b label2
 ; check: Block 1:
 ; check: add x0, x0, x1, UXTW
 ; nextln: subs wzr, w1, #65536
 ; nextln: movz x1, #0
 ; nextln: csel x0, x1, x0, hi
-; nextln: ldp fp, lr, [sp], #16
 ; nextln: ret
 ; check: Block 2:
 ; check: udf

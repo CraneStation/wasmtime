@@ -18,15 +18,12 @@ block0:
 ; nextln: Entry block: 0
 ; nextln: Block 0:
 ; nextln:   (original IR block: block0)
-; nextln:   (instruction range: 0 .. 10)
-; nextln:   Inst 0:   stp fp, lr, [sp, #-16]!
-; nextln:   Inst 1:   mov fp, sp
-; nextln:   Inst 2:   movz x0, #56780
-; nextln:   Inst 3:   uxth w0, w0
-; nextln:   Inst 4:   movz x1, #56780
-; nextln:   Inst 5:   subs wzr, w0, w1, UXTH
-; nextln:   Inst 6:   cset x0, ne
-; nextln:   Inst 7:   and w0, w0, #1
-; nextln:   Inst 8:   ldp fp, lr, [sp], #16
-; nextln:   Inst 9:   ret
+; nextln:   (instruction range: 0 .. 7)
+; nextln:   Inst 0:   movz x0, #56780
+; nextln:   Inst 1:   uxth w0, w0
+; nextln:   Inst 2:   movz x1, #56780
+; nextln:   Inst 3:   subs wzr, w0, w1, UXTH
+; nextln:   Inst 4:   cset x0, ne
+; nextln:   Inst 5:   and w0, w0, #1
+; nextln:   Inst 6:   ret
 ; nextln: }}

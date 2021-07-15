@@ -8,10 +8,7 @@ block0(v0: i8, v1: i8):
   return v2
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: add w0, w0, w1
-; nextln: ldp fp, lr, [sp], #16
+; check: add w0, w0, w1
 ; nextln: ret
 
 function %add16(i16, i16) -> i16 {
@@ -20,10 +17,7 @@ block0(v0: i16, v1: i16):
   return v2
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: add w0, w0, w1
-; nextln: ldp fp, lr, [sp], #16
+; check: add w0, w0, w1
 ; nextln: ret
 
 function %add32(i32, i32) -> i32 {
@@ -32,10 +26,7 @@ block0(v0: i32, v1: i32):
   return v2
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: add w0, w0, w1
-; nextln: ldp fp, lr, [sp], #16
+; check: add w0, w0, w1
 ; nextln: ret
 
 function %add32_8(i32, i8) -> i32 {
@@ -45,10 +36,7 @@ block0(v0: i32, v1: i8):
   return v3
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: add w0, w0, w1, SXTB
-; nextln: ldp fp, lr, [sp], #16
+; check: add w0, w0, w1, SXTB
 ; nextln: ret
 
 function %add64_32(i64, i32) -> i64 {
@@ -58,8 +46,5 @@ block0(v0: i64, v1: i32):
   return v3
 }
 
-; check: stp fp, lr, [sp, #-16]!
-; nextln: mov fp, sp
-; nextln: add x0, x0, x1, SXTW
-; nextln: ldp fp, lr, [sp], #16
+; check: add x0, x0, x1, SXTW
 ; nextln: ret
