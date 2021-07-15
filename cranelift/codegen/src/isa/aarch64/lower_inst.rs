@@ -3560,6 +3560,8 @@ pub(crate) fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
         | Opcode::Fvdemote
         | Opcode::FvpromoteLow
         | Opcode::Vconcat
+        | Opcode::ExtendedPairwiseAddSigned
+        | Opcode::ExtendedPairwiseAddUnsigned
         | Opcode::Vsplit => unimplemented!("lowering {}", op),
     }
 

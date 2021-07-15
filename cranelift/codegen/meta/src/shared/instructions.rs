@@ -4114,7 +4114,34 @@ pub(crate) fn define(
         Inst::new(
             "uwiden_high",
             r#"
-        Widen the high lanes of `x` using unsigned extension.
+        Lane-wise integer extended pairwise addition producing extended results
+        (twice wider results than the input)
+            "#,
+            &formats.unary,
+        )
+        .operands_in(vec![x])
+        .operands_out(vec![a]),
+    );
+
+    ig.push(
+        Inst::new(
+            "extended_pairwise_add_signed",
+            r#"
+        Widen the high lanes of `x` using signed extension.
+
+        This will double the lane width and halve the number of lanes.
+            "#,
+            &formats.unary,
+        )
+        .operands_in(vec![x])
+        .operands_out(vec![a]),
+    );
+
+    ig.push(
+        Inst::new(
+            "extended_pairwise_add_unsigned",
+            r#"
+        Widen the high lanes of `x` extending with zeros.
 
         This will double the lane width and halve the number of lanes.
             "#,

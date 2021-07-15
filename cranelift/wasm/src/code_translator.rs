@@ -1879,6 +1879,22 @@ pub fn translate_operator<FE: FuncEnvironment + ?Sized>(
             let a = pop1_with_bitcast(state, I32X4, builder);
             state.push1(builder.ins().uwiden_high(a))
         }
+        Operator::I16x8ExtAddPairwiseI8x16S => {
+            let a = pop1_with_bitcast(state, I8X16, builder);
+            state.push1(builder.ins().extended_pairwise_add_signed(a))
+        }
+        Operator::I32x4ExtAddPairwiseI16x8S => {
+            let a = pop1_with_bitcast(state, I16X8, builder);
+            state.push1(builder.ins().extended_pairwise_add_signed(a))
+        }
+        Operator::I16x8ExtAddPairwiseI8x16U => {
+            let a = pop1_with_bitcast(state, I8X16, builder);
+            state.push1(builder.ins().extended_pairwise_add_unsigned(a))
+        }
+        Operator::I32x4ExtAddPairwiseI16x8U => {
+            let a = pop1_with_bitcast(state, I16X8, builder);
+            state.push1(builder.ins().extended_pairwise_add_unsigned(a))
+        }
         Operator::F32x4Ceil | Operator::F64x2Ceil => {
             // This is something of a misuse of `type_of`, because that produces the return type
             // of `op`.  In this case we want the arg type, but we know it's the same as the
@@ -1922,11 +1938,7 @@ pub fn translate_operator<FE: FuncEnvironment + ?Sized>(
         | Operator::I64x2ExtMulLowI32x4S
         | Operator::I64x2ExtMulHighI32x4S
         | Operator::I64x2ExtMulLowI32x4U
-        | Operator::I64x2ExtMulHighI32x4U
-        | Operator::I16x8ExtAddPairwiseI8x16S
-        | Operator::I16x8ExtAddPairwiseI8x16U
-        | Operator::I32x4ExtAddPairwiseI16x8S
-        | Operator::I32x4ExtAddPairwiseI16x8U => {
+        | Operator::I64x2ExtMulHighI32x4U => {
             return Err(wasm_unsupported!("proposed simd operator {:?}", op));
         }
         Operator::ReturnCall { .. } | Operator::ReturnCallIndirect { .. } => {
