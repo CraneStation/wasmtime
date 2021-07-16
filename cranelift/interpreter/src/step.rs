@@ -102,8 +102,17 @@ where
 
     // Based on `condition`, indicate where to continue the control flow.
     let branch_when = |condition: bool| -> Result<ControlFlow<V>, StepError> {
+        let branch_args = match inst {
+            InstructionData::Jump { .. } => args_range(0..),
+            InstructionData::BranchInt { .. }
+            | InstructionData::BranchFloat { .. }
+            | InstructionData::Branch { .. } => args_range(1..),
+            InstructionData::BranchIcmp { .. } => args_range(2..),
+            _ => panic!("Unrecognized branch inst: {:?}", inst),
+        }?;
+
         Ok(if condition {
-            ControlFlow::ContinueAt(branch(), args_range(1..)?)
+            ControlFlow::ContinueAt(branch(), branch_args)
         } else {
             ControlFlow::Continue
         })
@@ -133,9 +142,17 @@ where
     // Interpret a Cranelift instruction.
     Ok(match inst.opcode() {
         Opcode::Jump | Opcode::Fallthrough => ControlFlow::ContinueAt(branch(), args()?),
-        Opcode::Brz => branch_when(!arg(0)?.into_bool()?)?,
-        Opcode::Brnz => branch_when(arg(0)?.into_bool()?)?,
-        Opcode::BrIcmp => branch_when(icmp(inst.cond_code().unwrap(), &arg(1)?, &arg(2)?)?)?,
+        Opcode::Brz => branch_when(
+            !arg(0)?
+                .convert(ValueConversionKind::ToBoolean)?
+                .into_bool()?,
+        )?,
+        Opcode::Brnz => branch_when(
+            arg(0)?
+                .convert(ValueConversionKind::ToBoolean)?
+                .into_bool()?,
+        )?,
+        Opcode::BrIcmp => branch_when(icmp(inst.cond_code().unwrap(), &arg(0)?, &arg(1)?)?)?,
         Opcode::Brif => branch_when(state.has_iflag(inst.cond_code().unwrap()))?,
         Opcode::Brff => branch_when(state.has_fflag(inst.fp_cond_code().unwrap()))?,
         Opcode::BrTable => unimplemented!("BrTable"),
@@ -703,8 +720,8 @@ where
             &left.clone().convert(ValueConversionKind::ToUnsigned)?,
             &right.clone().convert(ValueConversionKind::ToUnsigned)?,
         )?,
-        IntCC::Overflow => unimplemented!("IntCC::Overflow"),
-        IntCC::NotOverflow => unimplemented!("IntCC::NotOverflow"),
+        IntCC::Overflow => Value::overflow(left, right)?,
+        IntCC::NotOverflow => !Value::overflow(left, right)?,
     })
 }
 

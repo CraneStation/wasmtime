@@ -37,6 +37,7 @@ pub trait Value: Clone + From<DataValue> {
         Ok(other.eq(self)? || other.gt(self)?)
     }
     fn uno(&self, other: &Self) -> ValueResult<bool>;
+    fn overflow(&self, other: &Self) -> ValueResult<bool>;
 
     // Arithmetic.
     fn add(self, other: Self) -> ValueResult<Self>;
@@ -107,6 +108,9 @@ pub enum ValueConversionKind {
     /// Convert a floating point number by rounding to the nearest possible value with ties to even.
     /// See `fdemote`, e.g.
     RoundNearestEven(Type),
+    /// Converts an integer into a boolean, zero integers are converted into a
+    /// `false`, while other integers are converted into `true`. Booleans are passed through.
+    ToBoolean,
 }
 
 /// Helper for creating match expressions over [DataValue].
@@ -262,6 +266,11 @@ impl Value for DataValue {
                 (types::F64, types::F32) => unimplemented!(),
                 _ => unimplemented!("conversion: {} -> {:?}", self.ty(), kind),
             },
+            ValueConversionKind::ToBoolean => match self.ty() {
+                ty if ty.is_bool() => DataValue::B(self.into_bool()?),
+                ty if ty.is_int() => DataValue::B(self.into_int()? != 0),
+                ty => unimplemented!("conversion: {} -> {:?}", ty, kind),
+            },
         })
     }
 
@@ -275,6 +284,16 @@ impl Value for DataValue {
 
     fn uno(&self, other: &Self) -> ValueResult<bool> {
         Ok(self.is_nan()? || other.is_nan()?)
+    }
+
+    fn overflow(&self, other: &Self) -> ValueResult<bool> {
+        Ok(match (self, other) {
+            (DataValue::I8(a), DataValue::I8(b)) => a.checked_sub(*b).is_none(),
+            (DataValue::I16(a), DataValue::I16(b)) => a.checked_sub(*b).is_none(),
+            (DataValue::I32(a), DataValue::I32(b)) => a.checked_sub(*b).is_none(),
+            (DataValue::I64(a), DataValue::I64(b)) => a.checked_sub(*b).is_none(),
+            _ => unimplemented!(),
+        })
     }
 
     fn add(self, other: Self) -> ValueResult<Self> {
