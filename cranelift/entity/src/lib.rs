@@ -129,6 +129,68 @@ macro_rules! entity_impl {
             }
         }
     };
+
+    // Alternate form for tuples we can't directly construct; providing "to" and "from" expressions
+    // to turn an index *into* an entity, or get an index *from* an entity.
+    ($entity:ident, $display_prefix:expr, $arg:ident, $to_expr:expr, $from_expr:expr) => {
+        impl $crate::EntityRef for $entity {
+            #[inline]
+            fn new(index: usize) -> Self {
+                debug_assert!(index < ($crate::__core::u32::MAX as usize));
+                let $arg = index as u32;
+                $to_expr
+            }
+
+            #[inline]
+            fn index(self) -> usize {
+                let $arg = self;
+                $from_expr as usize
+            }
+        }
+
+        impl $crate::packed_option::ReservedValue for $entity {
+            #[inline]
+            fn reserved_value() -> $entity {
+                $entity::from_u32($crate::__core::u32::MAX)
+            }
+
+            #[inline]
+            fn is_reserved_value(&self) -> bool {
+                self.as_u32() == $crate::__core::u32::MAX
+            }
+        }
+
+        impl $entity {
+            /// Create a new instance from a `u32`.
+            #[allow(dead_code)]
+            #[inline]
+            pub fn from_u32(x: u32) -> Self {
+                debug_assert!(x < $crate::__core::u32::MAX);
+                let $arg = x;
+                $to_expr
+            }
+
+            /// Return the underlying index value as a `u32`.
+            #[allow(dead_code)]
+            #[inline]
+            pub fn as_u32(self) -> u32 {
+                let $arg = self;
+                $from_expr
+            }
+        }
+
+        impl $crate::__core::fmt::Display for $entity {
+            fn fmt(&self, f: &mut $crate::__core::fmt::Formatter) -> $crate::__core::fmt::Result {
+                write!(f, concat!($display_prefix, "{}"), self.as_u32())
+            }
+        }
+
+        impl $crate::__core::fmt::Debug for $entity {
+            fn fmt(&self, f: &mut $crate::__core::fmt::Formatter) -> $crate::__core::fmt::Result {
+                (self as &dyn $crate::__core::fmt::Display).fmt(f)
+            }
+        }
+    };
 }
 
 pub mod packed_option;
@@ -150,3 +212,103 @@ pub use self::map::SecondaryMap;
 pub use self::primary::PrimaryMap;
 pub use self::set::EntitySet;
 pub use self::sparse::{SparseMap, SparseMapValue, SparseSet};
+
+/// A collection of tests to ensure that use of the different `entity_impl!` forms will generate
+/// `EntityRef` implementations that behave the same way.
+#[cfg(test)]
+mod tests {
+    /// A macro used to emit some basic tests to show that entities behave as we expect.
+    macro_rules! entity_test {
+        ($entity:ident) => {
+            #[test]
+            fn from_usize_to_u32() {
+                let e = $entity::new(42);
+                assert_eq!(e.as_u32(), 42_u32);
+            }
+
+            #[test]
+            fn from_u32_to_usize() {
+                let e = $entity::from_u32(42);
+                assert_eq!(e.index(), 42_usize);
+            }
+
+            #[test]
+            fn comparisons_work() {
+                let a = $entity::from_u32(42);
+                let b = $entity::new(42);
+                assert_eq!(a, b);
+            }
+
+            #[should_panic]
+            #[test]
+            fn cannot_construct_from_reserved_u32() {
+                use crate::packed_option::ReservedValue;
+                let reserved = $entity::reserved_value().as_u32();
+                let _ = $entity::from_u32(reserved); // panic
+            }
+
+            #[should_panic]
+            #[test]
+            fn cannot_construct_from_reserved_usize() {
+                use crate::packed_option::ReservedValue;
+                let reserved = $entity::reserved_value().index();
+                let _ = $entity::new(reserved); // panic
+            }
+        };
+    }
+
+    /// Test cases for a plain ol' `EntityRef` implementation.
+    mod basic_entity {
+        use crate::EntityRef;
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        struct BasicEntity(u32);
+        entity_impl!(BasicEntity);
+        entity_test!(BasicEntity);
+    }
+
+    /// Test cases for an `EntityRef` implementation that includes a display prefix.
+    mod prefix_entity {
+        use crate::EntityRef;
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        struct PrefixEntity(u32);
+        entity_impl!(PrefixEntity, "prefix-");
+        entity_test!(PrefixEntity);
+
+        #[test]
+        fn display_prefix_works() {
+            let e = PrefixEntity::new(0);
+            assert_eq!(alloc::format!("{}", e), "prefix-0");
+        }
+    }
+
+    /// Test cases for an `EntityRef` implementation for a type we can only construct through
+    /// other means, such as calls to `core::convert::From<u32>`.
+    mod other_entity {
+        mod inner {
+            #[derive(Clone, Copy, PartialEq, Eq)]
+            pub struct InnerEntity(u32);
+
+            impl From<u32> for InnerEntity {
+                fn from(x: u32) -> Self {
+                    Self(x)
+                }
+            }
+
+            impl From<InnerEntity> for u32 {
+                fn from(x: InnerEntity) -> Self {
+                    x.0
+                }
+            }
+        }
+
+        use {self::inner::InnerEntity, crate::EntityRef};
+        entity_impl!(InnerEntity, "inner-", i, InnerEntity::from(i), u32::from(i));
+        entity_test!(InnerEntity);
+
+        #[test]
+        fn display_prefix_works() {
+            let e = InnerEntity::new(0);
+            assert_eq!(alloc::format!("{}", e), "inner-0");
+        }
+    }
+}
