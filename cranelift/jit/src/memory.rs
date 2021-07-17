@@ -191,6 +191,8 @@ impl Memory {
                 }
             }
         }
+
+        self.executable = self.allocations.len();
     }
 
     /// Set all memory allocated in this `Memory` up to now as readonly.
@@ -220,12 +222,15 @@ impl Memory {
                 }
             }
         }
+
+        self.executable = self.allocations.len();
     }
 
     /// Frees all allocated memory regions that would be leaked otherwise.
     /// Likely to invalidate existing function pointers, causing unsafety.
     pub(crate) unsafe fn free_memory(&mut self) {
         self.allocations.clear();
+        self.executable = 0;
     }
 }
 
