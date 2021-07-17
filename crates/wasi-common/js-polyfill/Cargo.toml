@@ -1,0 +1,13 @@
+[package]
+name = "polyfill"
+version = "0.1.0"
+authors = ["The Wasmtime Project Developers"]
+edition = "2018"
+
+[dependencies]
+wasi-common = { path = ".." }
+
+# This crate is built with the wasm32-unknown-emscripten target, so it's separate
+# from the main Wasmtime build, so use this directive to exclude it
+# from the parent directory's workspace.
+[workspace]
