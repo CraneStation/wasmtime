@@ -1,8 +1,8 @@
 ; Test code generation for WebAssembly f64 comparison operators.
 test compile
 
+target aarch64
 target i686 haswell
-
 target x86_64 haswell
 
 function %f64_eq(f64, f64) -> i32 {

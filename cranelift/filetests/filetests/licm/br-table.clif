@@ -1,5 +1,6 @@
 test compile
 set opt_level=speed_and_size
+target aarch64
 target x86_64
 
 function %br_table_opt() {
@@ -9,7 +10,7 @@ function %br_table_opt() {
         v0 = iconst.i32 1
         br_table v0, block2, jt0
 
-    block1: 
+    block1:
         return
 
     block2:

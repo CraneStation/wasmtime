@@ -1,4 +1,5 @@
 test licm
+target aarch64
 target x86_64
 
 function %dont_hoist_jump_table_entry_during_licm() {

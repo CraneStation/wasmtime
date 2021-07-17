@@ -1,5 +1,6 @@
 test simple-gvn
 
+target aarch64
 target x86_64
 
 function %eliminate_redundant_global_loads(i32, i64 vmctx) {

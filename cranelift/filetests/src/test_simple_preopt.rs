@@ -23,6 +23,10 @@ impl SubTest for TestSimplePreopt {
         "simple_preopt"
     }
 
+    fn needs_isa(&self) -> bool {
+        true
+    }
+
     fn is_mutating(&self) -> bool {
         true
     }

@@ -1,5 +1,6 @@
 test licm
 
+target aarch64
 target x86_64
 
 ;; Nontrapping readonly load from address that is not loop-dependent

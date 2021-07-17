@@ -1,6 +1,7 @@
 ; Test basic code generation for i32 arithmetic WebAssembly instructions.
 test compile
 
+target aarch64
 target i686 haswell
 target i686 baseline
 target x86_64 haswell

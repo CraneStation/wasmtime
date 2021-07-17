@@ -1,4 +1,5 @@
 test run
+target aarch64
 target x86_64 machinst
 
 function %bint_b8_i128() -> i64, i64 {

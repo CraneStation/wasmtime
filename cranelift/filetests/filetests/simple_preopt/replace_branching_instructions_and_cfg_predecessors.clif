@@ -1,4 +1,5 @@
 test simple_preopt
+target aarch64
 target x86_64
 
 function u0:2(i64 , i64) {

@@ -1,4 +1,5 @@
 test preopt
+target aarch64
 target x86_64
 
 function %iadd_fold() -> i32 {

@@ -1,4 +1,5 @@
 test compile
+target aarch64
 target x86_64 haswell
 
 ;; Returning many mixed values.

@@ -1,4 +1,5 @@
 test peepmatic
+target aarch64
 target i686
 
 ;; 32-bits platforms.

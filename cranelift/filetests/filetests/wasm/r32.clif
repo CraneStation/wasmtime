@@ -4,6 +4,7 @@
 test compile
 set enable_safepoints=true
 
+target aarch64
 target i686 haswell
 
 function %select_ref(i32, r32, r32) -> r32 {

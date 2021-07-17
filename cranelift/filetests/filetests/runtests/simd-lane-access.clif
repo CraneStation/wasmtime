@@ -1,5 +1,5 @@
 test run
-; target aarch64 TODO: Not yet implemented on aarch64
+target aarch64
 ; target s390x TODO: Not yet implemented on s390x
 set enable_simd
 target x86_64 machinst

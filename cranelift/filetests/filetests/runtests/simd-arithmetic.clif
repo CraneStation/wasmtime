@@ -1,5 +1,5 @@
 test run
-; target aarch64 TODO: Not yet implemented on aarch64
+target aarch64
 ; target s390x TODO: Not yet implemented on s390x
 set enable_simd
 target x86_64 machinst skylake
@@ -125,7 +125,7 @@ block0:
 ; run
 
 function %sqrt_f64x2(f64x2) -> f64x2 {
-block0(v0: f64x2): 
+block0(v0: f64x2):
     v1 = sqrt v0
     return v1
 }
@@ -136,26 +136,22 @@ block0(v0: f64x2, v1: f64x2):
     v2 = fmax v0, v1
     return v2
 }
-; note below how NaNs are quieted but (unlike fmin), retain their sign: this discrepancy is allowed by non-determinism
-; in the spec, see https://webassembly.github.io/spec/core/bikeshed/index.html#nan-propagation%E2%91%A0.
+; This operation exhibits non-deterministic behaviour for some input NaN values;
+; refer to the simd-arithmetic-nondeterministic*.clif files for the respective tests.
 ; run: %fmax_f64x2([-0x0.0 -0x1.0], [+0x0.0 0x1.0]) == [+0x0.0 0x1.0]
 ; run: %fmax_f64x2([-NaN NaN], [0x0.0 0x100.0]) == [-NaN NaN]
 ; run: %fmax_f64x2([NaN 0.0], [0.0 0.0]) == [NaN 0.0]
 ; run: %fmax_f64x2([-NaN 0.0], [0x1.0 0.0]) == [-NaN 0.0]
-; run: %fmax_f64x2([NaN:0x42 0.0], [0x1.0 0.0]) == [NaN 0.0]
 
 function %fmin_f64x2(f64x2, f64x2) -> f64x2 {
 block0(v0: f64x2, v1: f64x2):
     v2 = fmin v0, v1
     return v2
 }
-; note below how NaNs are quieted and negative: this is due to non-determinism in the spec for NaNs, see
-; https://webassembly.github.io/spec/core/bikeshed/index.html#nan-propagation%E2%91%A0.
+; This operation exhibits non-deterministic behaviour for some input NaN values;
+; refer to the simd-arithmetic-nondeterministic*.clif files for the respective tests.
 ; run: %fmin_f64x2([-0x0.0 -0x1.0], [+0x0.0 0x1.0]) == [-0x0.0 -0x1.0]
-; run: %fmin_f64x2([-NaN 0x100.0], [0.0 NaN]) == [-NaN -NaN]
-; run: %fmin_f64x2([NaN 0.0], [0.0 0.0]) == [-NaN 0.0]
 ; run: %fmin_f64x2([-NaN 0.0], [0x1.0 0.0]) == [-NaN 0.0]
-; run: %fmin_f64x2([NaN:0x42 0.0], [0x1.0 0.0]) == [-NaN 0.0]
 
 function %fneg_f64x2(f64x2) -> f64x2 {
 block0(v0: f64x2):

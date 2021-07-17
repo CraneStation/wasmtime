@@ -13,7 +13,7 @@ use crate::ir::Inst as IRInst;
 use crate::ir::{Opcode, Type};
 use crate::machinst::lower::*;
 use crate::machinst::*;
-use crate::CodegenResult;
+use crate::{CodegenError, CodegenResult};
 
 use crate::isa::aarch64::inst::*;
 use crate::isa::aarch64::AArch64Backend;
@@ -1104,50 +1104,96 @@ pub(crate) fn lower_vector_compare<C: LowerCtx<I = Inst>>(
         _ => false,
     };
     let size = VectorSize::from_ty(ty);
-    // 'Less than' operations are implemented by swapping
-    // the order of operands and using the 'greater than'
-    // instructions.
-    // 'Not equal' is implemented with 'equal' and inverting
-    // the result.
-    let (alu_op, swap) = match (is_float, cond) {
-        (false, Cond::Eq) => (VecALUOp::Cmeq, false),
-        (false, Cond::Ne) => (VecALUOp::Cmeq, false),
-        (false, Cond::Ge) => (VecALUOp::Cmge, false),
-        (false, Cond::Gt) => (VecALUOp::Cmgt, false),
-        (false, Cond::Le) => (VecALUOp::Cmge, true),
-        (false, Cond::Lt) => (VecALUOp::Cmgt, true),
-        (false, Cond::Hs) => (VecALUOp::Cmhs, false),
-        (false, Cond::Hi) => (VecALUOp::Cmhi, false),
-        (false, Cond::Ls) => (VecALUOp::Cmhs, true),
-        (false, Cond::Lo) => (VecALUOp::Cmhi, true),
-        (true, Cond::Eq) => (VecALUOp::Fcmeq, false),
-        (true, Cond::Ne) => (VecALUOp::Fcmeq, false),
-        (true, Cond::Mi) => (VecALUOp::Fcmgt, true),
-        (true, Cond::Ls) => (VecALUOp::Fcmge, true),
-        (true, Cond::Ge) => (VecALUOp::Fcmge, false),
-        (true, Cond::Gt) => (VecALUOp::Fcmgt, false),
-        _ => unreachable!(),
-    };
 
-    if swap {
-        std::mem::swap(&mut rn, &mut rm);
-    }
+    if is_float && (cond == Cond::Vc || cond == Cond::Vs) {
+        let tmp = ctx.alloc_tmp(ty).only_reg().unwrap();
 
-    ctx.emit(Inst::VecRRR {
-        alu_op,
-        rd,
-        rn,
-        rm,
-        size,
-    });
-
-    if cond == Cond::Ne {
-        ctx.emit(Inst::VecMisc {
-            op: VecMisc2::Not,
+        ctx.emit(Inst::VecRRR {
+            alu_op: VecALUOp::Fcmeq,
             rd,
-            rn: rd.to_reg(),
+            rn,
+            rm: rn,
             size,
         });
+        ctx.emit(Inst::VecRRR {
+            alu_op: VecALUOp::Fcmeq,
+            rd: tmp,
+            rn: rm,
+            rm,
+            size,
+        });
+        ctx.emit(Inst::VecRRR {
+            alu_op: VecALUOp::And,
+            rd,
+            rn: rd.to_reg(),
+            rm: tmp.to_reg(),
+            size,
+        });
+
+        if cond == Cond::Vs {
+            ctx.emit(Inst::VecMisc {
+                op: VecMisc2::Not,
+                rd,
+                rn: rd.to_reg(),
+                size,
+            });
+        }
+    } else {
+        // 'Less than' operations are implemented by swapping
+        // the order of operands and using the 'greater than'
+        // instructions.
+        // 'Not equal' is implemented with 'equal' and inverting
+        // the result.
+        let (alu_op, swap) = match (is_float, cond) {
+            (false, Cond::Eq) => (VecALUOp::Cmeq, false),
+            (false, Cond::Ne) => (VecALUOp::Cmeq, false),
+            (false, Cond::Ge) => (VecALUOp::Cmge, false),
+            (false, Cond::Gt) => (VecALUOp::Cmgt, false),
+            (false, Cond::Le) => (VecALUOp::Cmge, true),
+            (false, Cond::Lt) => (VecALUOp::Cmgt, true),
+            (false, Cond::Hs) => (VecALUOp::Cmhs, false),
+            (false, Cond::Hi) => (VecALUOp::Cmhi, false),
+            (false, Cond::Ls) => (VecALUOp::Cmhs, true),
+            (false, Cond::Lo) => (VecALUOp::Cmhi, true),
+            (true, Cond::Eq) => (VecALUOp::Fcmeq, false),
+            (true, Cond::Ne) => (VecALUOp::Fcmeq, false),
+            (true, Cond::Mi) => (VecALUOp::Fcmgt, true),
+            (true, Cond::Ls) => (VecALUOp::Fcmge, true),
+            (true, Cond::Ge) => (VecALUOp::Fcmge, false),
+            (true, Cond::Gt) => (VecALUOp::Fcmgt, false),
+            _ => {
+                return Err(CodegenError::Unsupported(format!(
+                    "Unsupported {} SIMD vector comparison: {:?}",
+                    if is_float {
+                        "floating-point"
+                    } else {
+                        "integer"
+                    },
+                    cond
+                )))
+            }
+        };
+
+        if swap {
+            std::mem::swap(&mut rn, &mut rm);
+        }
+
+        ctx.emit(Inst::VecRRR {
+            alu_op,
+            rd,
+            rn,
+            rm,
+            size,
+        });
+
+        if cond == Cond::Ne {
+            ctx.emit(Inst::VecMisc {
+                op: VecMisc2::Not,
+                rd,
+                rn: rd.to_reg(),
+                size,
+            });
+        }
     }
 
     Ok(())

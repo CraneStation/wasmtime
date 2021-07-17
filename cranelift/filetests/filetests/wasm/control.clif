@@ -1,8 +1,8 @@
 ; Test basic code generation for control flow WebAssembly instructions.
 test compile
 
+target aarch64
 target i686 haswell
-
 target x86_64 haswell
 
 function %br_if(i32) -> i32 {
