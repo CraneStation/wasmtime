@@ -1,0 +1,95 @@
+test compile
+set is_pic
+set enable_verifier
+set tls_model=elf_gd
+set enable_simd
+set enable_llvm_abi_extensions
+set opt_level=speed_and_size
+target x86_64-unknown-linux-gnu nehalem
+
+function u0:146(i64) -> i64, i16 system_v {
+    ss0 = explicit_slot 16
+    ss1 = explicit_slot 16
+    ss2 = explicit_slot 16
+    sig0 = (i64, i64) -> i8 system_v
+    sig1 = (i64, i64) -> i64, i64 system_v
+    sig2 = (i64, i64, i64) -> i64 system_v
+    fn0 = colocated u0:121 sig0
+    fn1 = colocated u0:969 sig1
+    fn2 = colocated u0:125 sig2
+    jt0 = jump_table [block10, block26]
+    jt1 = jump_table [block15, block17]
+
+                                block0(v0: i64):
+                                    v1 -> v0
+                                    v73 -> v0
+                                    v30 -> v73
+@0002                               v2 = iconst.i64 0
+                                    v3 -> v2
+                                    v14 -> v2
+                                    v75 -> v2
+@0005                               v5 = bconst.b1 false
+@0004                               brnz v5, block4
+                                    jump block1
+
+                                block1:
+@0009                               trap unreachable
+
+                                block4:
+@000f                               v17 = iconst.i64 0
+@000f                               v20 = iconst.i32 0
+@000f                               v21 = iconst.i64 0
+@000f                               v23 = select v20, v21, v17
+                                    v74 -> v23
+                                    v24 -> v74
+                                    v31 -> v74
+@0048                               v76 = call fn2(v0, v23, v2)
+                                    v26 -> v76
+                                    v44 -> v76
+                                    v51 -> v76
+@0013                               v25 = ireduce.i16 v23
+                                    v58 -> v25
+                                    v65 -> v25
+                                    v77 -> v25
+                                    v28 = iconst.i64 0
+                                    v29 = iconst.i16 0
+@001a                               stack_store v28, ss1
+@001a                               stack_store v29, ss1+8
+@001d                               v32 = call fn0(v0, v23)
+@0021                               v37 = iconst.i32 0
+@0021                               br_table v37, block8, jt0
+
+                                block8:
+@001d                               trap unreachable
+
+                                block10:
+@0024                               v46 = iconst.i64 0
+@0027                               brz v46, block11
+@0027                               jump block12
+
+                                block11:
+@0028                               v47 = stack_load.i64 ss1
+@0028                               v48 = stack_load.i16 ss1+8
+@0028                               stack_store v47, ss0
+@0028                               stack_store v48, ss0+8
+@0023                               trap user0
+
+                                block12:
+@0027                               trap user0
+
+                                block15:
+@0032                               trap user0
+
+                                block16:
+@0029                               trap unreachable
+
+                                block17:
+@0034                               stack_store.i16 v25, ss2+8
+@0038                               trap user0
+
+                                block26:
+@0029                               v52 = iconst.i64 1
+@0029                               v53, v54 = call fn1(v76, v52)
+@002c                               v57 = iconst.i32 0
+@002c                               br_table v57, block16, jt1
+}
