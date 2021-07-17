@@ -121,3 +121,52 @@ block0(v0: f32):
     ; check: ret
     return v1
 }
+
+
+
+;; insertlane
+
+; Verify that a `load` followed by an `insertlane` (the CLIF translation of `load*_lane`) is
+; lowered to a single PINSR* instruction.
+function %load32_lane_coalesced(i64, i32x4) -> i32x4 {
+block0(v0: i64, v1: i32x4):
+    v2 = load.i32 v0
+    v3 = insertlane.i32x4 v1, v2, 3
+    ; check: pinsrd  $$3, 0(%rdi), %xmm0
+    return v3
+}
+
+; For types smaller than 32 bits, the `load` instruction will usually attempt to extend the value.
+; This test checks that no extension is performed (since it is not needed by PINSR*)
+function %load8_lane_coalesced(i64, i8x16) -> i8x16 {
+block0(v0: i64, v1: i8x16):
+    v2 = load.i8 v0
+    v3 = insertlane.i8x16 v1, v2, 3
+    ; check: pushq
+    ; not: movzbq
+    ; check: pinsrb  $$3, 0(%rdi), %xmm0
+    return v3
+}
+
+
+
+;; extract lane
+
+; Verify that an `extractlane` followed by a `store` (the CLIF translation of `store*_lane`) is
+; lowered to a single PEXTR* instruction.
+function %store32_lane_coalesced(i64, i32x4) {
+block0(v0: i64, v1: i32x4):
+    v2 = extractlane.i32x4 v1, 3
+    store.i32 v2, v0
+    ; check: pextrd  $$3, %xmm0, 0(%rdi)
+    return
+}
+
+; Do the same `extractlane + store --> PEXTR*` conversion for a "smaller than 32-bit type."
+function %store8_lane_coalesced(i64, i16x8) {
+block0(v0: i64, v1: i16x8):
+    v2 = extractlane.i16x8 v1, 3
+    store.i16 v2, v0
+    ; check: pextrw  $$3, %xmm0, 0(%rdi)
+    return
+}
