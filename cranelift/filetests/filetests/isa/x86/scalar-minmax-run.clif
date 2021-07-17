@@ -1,0 +1,68 @@
+test run
+target x86_64
+
+function %imax8(i8, i8) -> i8 {
+block0(v0:i8, v1:i8):
+    v2 = imax v0, v1
+    return v2
+}
+; run: %imax8(1, 10) == 10
+; run: %imax8(-1, 1) == 1
+
+function %imin8(i8, i8) -> i8 {
+block0(v0:i8, v1:i8):
+    v2 = imin v0, v1
+    return v2
+}
+; run: %imin8(1, 10) == 1
+; run: %imin8(-1, 1) == -1
+
+function %umin8(i8, i8) -> i8 {
+block0(v0:i8, v1:i8):
+    v2 = umin v0, v1
+    return v2
+}
+; run: %umin8(1, 10) == 1
+; run: %umin8(-1, 1) == 1
+
+function %umax8(i8, i8) -> i8 {
+block0(v0:i8, v1:i8):
+    v2 = umax v0, v1
+    return v2
+}
+; run: %umax8(1, 10) == 10
+; run: %umax8(-1, 1) == -1
+
+function %imin32(i32, i32) -> i32 {
+block0(v0:i32, v1:i32):
+    v2 = imin v0, v1
+    return v2
+}
+; run: %imin32(1, 10) == 1
+; run: %imin32(-1, 1) == -1
+
+function %imax32(i32, i32) -> i32 {
+block0(v0:i32, v1:i32):
+    v2 = imax v0, v1
+    return v2
+}
+; run: %imin32(1, 10) == 10
+; run: %imin32(-1, 1) == 1
+
+
+function %umin32(i32, i32) -> i32 {
+block0(v0:i32, v1:i32):
+    v2 = umin v0, v1
+    return v2
+}
+; run: %umin32(1, 10) == 1
+; run: %umin32(-1, 1) == 1
+
+
+function %umax32(i32, i32) -> i32 {
+block0(v0:i32, v1:i32):
+    v2 = umax v0, v1
+    return v2
+}
+; run: %umax32(1, 10) == 10
+; run: %umax32(-1, 1) == -1

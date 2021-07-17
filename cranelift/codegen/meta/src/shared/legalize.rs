@@ -81,6 +81,8 @@ pub(crate) fn define(insts: &InstructionGroup, imm: &Immediates) -> TransformGro
     let iconst = insts.by_name("iconst");
     let ifcmp = insts.by_name("ifcmp");
     let ifcmp_imm = insts.by_name("ifcmp_imm");
+    let imax = insts.by_name("imax");
+    let imin = insts.by_name("imin");
     let imul = insts.by_name("imul");
     let imul_imm = insts.by_name("imul_imm");
     let ireduce = insts.by_name("ireduce");
@@ -118,6 +120,8 @@ pub(crate) fn define(insts: &InstructionGroup, imm: &Immediates) -> TransformGro
     let uextend = insts.by_name("uextend");
     let uload8 = insts.by_name("uload8");
     let uload16 = insts.by_name("uload16");
+    let umax = insts.by_name("umax");
+    let umin = insts.by_name("umin");
     let umulhi = insts.by_name("umulhi");
     let ushr = insts.by_name("ushr");
     let ushr_imm = insts.by_name("ushr_imm");
@@ -760,6 +764,21 @@ pub(crate) fn define(insts: &InstructionGroup, imm: &Immediates) -> TransformGro
             def!(a = inst_imm(x, y)),
             vec![def!(a1 = iconst.I32(y)), def!(a = inst(x, a1))],
         );
+    }
+
+    // Expand scalar [i,u] min/max using icmp and select.
+    for &(inst, cc) in &[(imin, "slt"), (imax, "sgt"), (umin, "ult"), (umax, "ugt")] {
+        let w_cc = Literal::enumerator_for(&imm.intcc, cc);
+        expand.legalize(
+            def!(a = inst(x, y)),
+            vec![def!(c = icmp(w_cc, x, y)), def!(a = select(c, x, y))],
+        );
+        for &int_ty in &[I8, I16] {
+            widen.legalize(
+                def!(a = inst.int_ty(x, y)),
+                vec![def!(c = icmp(w_cc, x, y)), def!(a = select(c, x, y))],
+            )
+        }
     }
 
     expand.legalize(
