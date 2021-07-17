@@ -415,6 +415,11 @@ jobs:
         include:
         - build: x86_64-linux
           os: ubuntu-latest
+        - build: x86_64-linux-musl
+          os: ubuntu-latest
+          target: x86_64-unknown-linux-musl
+          gcc_package: musl-tools
+          gcc: musl-gcc
         - build: x86_64-macos
           os: macos-latest
         - build: x86_64-windows
@@ -454,7 +459,7 @@ jobs:
     # Build `libwasmtime.so`
     - run: $CENTOS cargo build --release --manifest-path crates/c-api/Cargo.toml
 
-    # Assemble release artifats appropriate for this platform, then upload them
+    # Assemble release artifacts appropriate for this platform, then upload them
     # unconditionally to this workflow's files so we have a copy of them.
     - run: ./ci/build-tarballs.sh "${{ matrix.build }}" "${{ matrix.target }}"
     - uses: actions/upload-artifact@v1

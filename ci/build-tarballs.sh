@@ -59,6 +59,9 @@ elif [ "$platform" = "x86_64-macos" ]; then
   install_name_tool -id "@rpath/libwasmtime.dylib" target/release/libwasmtime.dylib
   cp target/release/wasmtime tmp/$bin_pkgname
   cp target/release/libwasmtime.{a,dylib} tmp/$api_pkgname/lib
+elif [ "$platform" = "x86_64-linux-musl" ]; then
+  cp target/$target/release/wasmtime tmp/$bin_pkgname
+  cp target/$target/release/libwasmtime.a tmp/$api_pkgname/lib # no libwasmtime.so for musl
 elif [ "$target" = "" ]; then
   cp target/release/wasmtime tmp/$bin_pkgname
   cp target/release/libwasmtime.{a,so} tmp/$api_pkgname/lib
