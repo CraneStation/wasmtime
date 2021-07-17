@@ -469,8 +469,8 @@ pub enum Operator<Label> {
         /// Returning from the function is just calling the "return" block
         target: BrTarget<Label>,
     },
-    /// Pop a value off the top of the stack, jump to the `else_` label if this value is `true`
-    /// and the `then` label otherwise. The `then` and `else_` blocks must have the same parameters.
+    /// Pop a value off the top of the stack, jump to the `then` label if this value is `true`
+    /// and the `else_` label otherwise. The `then` and `else_` blocks must have the same parameters.
     BrIf {
         /// Label to jump to if the value at the top of the stack is true
         then: BrTargetDrop<Label>,
