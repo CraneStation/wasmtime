@@ -66,6 +66,8 @@ pub use crate::write::write_function;
 
 pub use cranelift_bforest as bforest;
 pub use cranelift_entity as entity;
+#[cfg(feature = "unwind")]
+pub use gimli;
 
 pub mod binemit;
 pub mod cfg_printer;
