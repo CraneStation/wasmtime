@@ -31,7 +31,9 @@ use wasmtime_environ::entity::{EntityRef, PrimaryMap};
 use wasmtime_environ::ir::{LibCall, Reloc};
 use wasmtime_environ::isa::unwind::UnwindInfo;
 use wasmtime_environ::wasm::{DefinedFuncIndex, FuncIndex, SignatureIndex};
-use wasmtime_environ::{CompiledFunction, CompiledFunctions, Module, Relocation, RelocationTarget};
+use wasmtime_environ::{
+    for_each_libcall, CompiledFunction, CompiledFunctions, Module, Relocation, RelocationTarget,
+};
 
 fn to_object_relocations<'a>(
     it: impl Iterator<Item = &'a Relocation> + 'a,
@@ -124,31 +126,6 @@ fn process_unwind_info(info: &UnwindInfo, obj: &mut Object, code_section: Sectio
 
 /// Builds ELF image from the module `Compilation`.
 // const CODE_SECTION_ALIGNMENT: u64 = 0x1000;
-
-/// Iterates through all `LibCall` members and all runtime exported functions.
-#[macro_export]
-macro_rules! for_each_libcall {
-    ($op:ident) => {
-        $op![
-            (UdivI64, wasmtime_i64_udiv),
-            (UdivI64, wasmtime_i64_udiv),
-            (SdivI64, wasmtime_i64_sdiv),
-            (UremI64, wasmtime_i64_urem),
-            (SremI64, wasmtime_i64_srem),
-            (IshlI64, wasmtime_i64_ishl),
-            (UshrI64, wasmtime_i64_ushr),
-            (SshrI64, wasmtime_i64_sshr),
-            (CeilF32, wasmtime_f32_ceil),
-            (FloorF32, wasmtime_f32_floor),
-            (TruncF32, wasmtime_f32_trunc),
-            (NearestF32, wasmtime_f32_nearest),
-            (CeilF64, wasmtime_f64_ceil),
-            (FloorF64, wasmtime_f64_floor),
-            (TruncF64, wasmtime_f64_trunc),
-            (NearestF64, wasmtime_f64_nearest)
-        ];
-    };
-}
 
 fn write_libcall_symbols(obj: &mut Object) -> HashMap<LibCall, SymbolId> {
     let mut libcalls = HashMap::new();

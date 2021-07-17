@@ -184,6 +184,35 @@ pub extern "C" fn wasmtime_f64_nearest(x: f64) -> f64 {
     }
 }
 
+/// Implementation of probestack
+pub unsafe extern "C" fn wasmtime_probestack() {
+    // TODO forward to __rust_probestack ?
+    panic!("TODO probestack")
+}
+
+/// Implementation of elf_tls_get_addr
+pub unsafe extern "C" fn wasmtime_tls_get_addr() {
+    panic!("TODO elf_tls_get_addr")
+}
+
+/// Implementation of memcpy
+pub unsafe extern "C" fn wasmtime_memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    use std::ffi::c_void;
+    libc::memcpy(dest as *mut c_void, src as *const c_void, n) as *mut u8
+}
+
+/// Implementation of memmove
+pub unsafe extern "C" fn wasmtime_memmove(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    use std::ffi::c_void;
+    libc::memmove(dest as *mut c_void, src as *const c_void, n) as *mut u8
+}
+
+/// Implementation of memset
+pub unsafe extern "C" fn wasmtime_memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+    use std::ffi::c_void;
+    libc::memset(s as *mut c_void, c, n) as *mut u8
+}
+
 /// Implementation of memory.grow for locally-defined 32-bit memories.
 pub unsafe extern "C" fn wasmtime_memory32_grow(
     vmctx: *mut VMContext,

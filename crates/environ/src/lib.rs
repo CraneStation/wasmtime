@@ -69,7 +69,6 @@ macro_rules! for_each_libcall {
     ($op:ident) => {
         $op![
             (UdivI64, wasmtime_i64_udiv),
-            (UdivI64, wasmtime_i64_udiv),
             (SdivI64, wasmtime_i64_sdiv),
             (UremI64, wasmtime_i64_urem),
             (SremI64, wasmtime_i64_srem),
@@ -83,7 +82,26 @@ macro_rules! for_each_libcall {
             (CeilF64, wasmtime_f64_ceil),
             (FloorF64, wasmtime_f64_floor),
             (TruncF64, wasmtime_f64_trunc),
-            (NearestF64, wasmtime_f64_nearest)
+            (NearestF64, wasmtime_f64_nearest),
+            (Probestack, wasmtime_probestack),
+            (Memcpy, wasmtime_memcpy),
+            (Memset, wasmtime_memset),
+            (Memmove, wasmtime_memmove),
+            (ElfTlsGetAddr, wasmtime_tls_get_addr)
         ];
     };
+}
+
+fn __assert_all_for_each_libcalls(libcall: crate::ir::LibCall) {
+    use crate::ir::LibCall;
+    macro_rules! assert_libcalls {
+        [$(($libcall:ident, $export:ident)),*] => {
+            match libcall {
+                $(
+                   | LibCall::$libcall
+                )+ => (),
+            }
+        };
+    }
+    for_each_libcall!(assert_libcalls)
 }
