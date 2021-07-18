@@ -1711,7 +1711,7 @@ fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                                 ));
                                 ctx.emit(Inst::xmm_mov(
                                     SseOpcode::Pmovsxbw,
-                                    RegMem::reg(lhs),
+                                    RegMem::reg(tmp_reg.to_reg()),
                                     tmp_reg,
                                 ));
 
@@ -1723,7 +1723,11 @@ fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                                     8,
                                     OperandSize::Size32,
                                 ));
-                                ctx.emit(Inst::xmm_mov(SseOpcode::Pmovsxbw, RegMem::reg(rhs), dst));
+                                ctx.emit(Inst::xmm_mov(
+                                    SseOpcode::Pmovsxbw,
+                                    RegMem::reg(dst.to_reg()),
+                                    dst,
+                                ));
                                 ctx.emit(Inst::xmm_rm_r(
                                     SseOpcode::Pmullw,
                                     RegMem::reg(tmp_reg.to_reg()),
@@ -1887,7 +1891,7 @@ fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                                 ));
                                 ctx.emit(Inst::xmm_mov(
                                     SseOpcode::Pmovzxbw,
-                                    RegMem::reg(lhs),
+                                    RegMem::reg(tmp_reg.to_reg()),
                                     tmp_reg,
                                 ));
                                 ctx.emit(Inst::gen_move(dst, rhs, output_ty));
@@ -1898,7 +1902,11 @@ fn lower_insn_to_regs<C: LowerCtx<I = Inst>>(
                                     8,
                                     OperandSize::Size32,
                                 ));
-                                ctx.emit(Inst::xmm_mov(SseOpcode::Pmovzxbw, RegMem::reg(rhs), dst));
+                                ctx.emit(Inst::xmm_mov(
+                                    SseOpcode::Pmovzxbw,
+                                    RegMem::reg(dst.to_reg()),
+                                    dst,
+                                ));
                                 ctx.emit(Inst::xmm_rm_r(
                                     SseOpcode::Pmullw,
                                     RegMem::reg(tmp_reg.to_reg()),
