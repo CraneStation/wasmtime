@@ -1,0 +1,767 @@
+test interpret
+test run
+target aarch64
+target s390x
+target x86_64 machinst
+
+
+function %bricmp_eq_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 eq v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_eq_i64(0, 0) == true
+; run: %bricmp_eq_i64(0, 1) == false
+; run: %bricmp_eq_i64(1, 0) == false
+; run: %bricmp_eq_i64(0xC0FFEEEE_DECAFFFF, 0xDECAFFFF_C0FFEEEE) == false
+
+function %bricmp_eq_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 eq v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_eq_i32(0, 0) == true
+; run: %bricmp_eq_i32(0, 1) == false
+; run: %bricmp_eq_i32(1, 0) == false
+; run: %bricmp_eq_i32(0xC0FFEEEE, 0xDECAFFFF) == false
+
+function %bricmp_eq_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 eq v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_eq_i16(0, 0) == true
+; run: %bricmp_eq_i16(0, 1) == false
+; run: %bricmp_eq_i16(1, 0) == false
+; run: %bricmp_eq_i16(0xC0FF, 0xDECA) == false
+
+function %bricmp_eq_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 eq v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_eq_i8(0, 0) == true
+; run: %bricmp_eq_i8(0, 1) == false
+; run: %bricmp_eq_i8(1, 0) == false
+; run: %bricmp_eq_i8(0xC0, 0xDE) == false
+
+
+function %bricmp_ne_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 ne v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ne_i64(0, 0) == false
+; run: %bricmp_ne_i64(0, 1) == true
+; run: %bricmp_ne_i64(1, 0) == true
+; run: %bricmp_ne_i64(0xC0FFEEEE_DECAFFFF, 0xDECAFFFF_C0FFEEEE) == true
+
+function %bricmp_ne_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 ne v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ne_i32(0, 0) == false
+; run: %bricmp_ne_i32(0, 1) == true
+; run: %bricmp_ne_i32(1, 0) == true
+; run: %bricmp_ne_i32(0xC0FFEEEE, 0xDECAFFFF) == true
+
+function %bricmp_ne_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 ne v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ne_i16(0, 0) == false
+; run: %bricmp_ne_i16(0, 1) == true
+; run: %bricmp_ne_i16(1, 0) == true
+; run: %bricmp_ne_i16(0xC0FF, 0xDECA) == true
+
+function %bricmp_ne_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 ne v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ne_i8(0, 0) == false
+; run: %bricmp_ne_i8(0, 1) == true
+; run: %bricmp_ne_i8(1, 0) == true
+; run: %bricmp_ne_i8(0xC0, 0xDE) == true
+
+
+function %bricmp_slt_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 slt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_slt_i64(0, 0) == false
+; run: %bricmp_slt_i64(0, 1) == true
+; run: %bricmp_slt_i64(1, 0) == false
+; run: %bricmp_slt_i64(0, -1) == false
+; run: %bricmp_slt_i64(-1, 0) == true
+
+function %bricmp_slt_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 slt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_slt_i32(0, 0) == false
+; run: %bricmp_slt_i32(0, 1) == true
+; run: %bricmp_slt_i32(1, 0) == false
+; run: %bricmp_slt_i32(0, -1) == false
+; run: %bricmp_slt_i32(-1, 0) == true
+
+function %bricmp_slt_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 slt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_slt_i16(0, 0) == false
+; run: %bricmp_slt_i16(0, 1) == true
+; run: %bricmp_slt_i16(1, 0) == false
+; run: %bricmp_slt_i16(0, -1) == false
+; run: %bricmp_slt_i16(-1, 0) == true
+
+function %bricmp_slt_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 slt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_slt_i8(0, 0) == false
+; run: %bricmp_slt_i8(0, 1) == true
+; run: %bricmp_slt_i8(1, 0) == false
+; run: %bricmp_slt_i8(0, -1) == false
+; run: %bricmp_slt_i8(-1, 0) == true
+
+
+function %bricmp_ult_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 ult v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ult_i64(0, 0) == false
+; run: %bricmp_ult_i64(0, 1) == true
+; run: %bricmp_ult_i64(1, 0) == false
+; run: %bricmp_ult_i64(0, -1) == true
+; run: %bricmp_ult_i64(-1, 0) == false
+
+function %bricmp_ult_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 ult v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ult_i32(0, 0) == false
+; run: %bricmp_ult_i32(0, 1) == true
+; run: %bricmp_ult_i32(1, 0) == false
+; run: %bricmp_ult_i32(0, -1) == true
+; run: %bricmp_ult_i32(-1, 0) == false
+
+function %bricmp_ult_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 ult v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ult_i16(0, 0) == false
+; run: %bricmp_ult_i16(0, 1) == true
+; run: %bricmp_ult_i16(1, 0) == false
+; run: %bricmp_ult_i16(0, -1) == true
+; run: %bricmp_ult_i16(-1, 0) == false
+
+function %bricmp_ult_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 ult v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ult_i8(0, 0) == false
+; run: %bricmp_ult_i8(0, 1) == true
+; run: %bricmp_ult_i8(1, 0) == false
+; run: %bricmp_ult_i8(0, -1) == true
+; run: %bricmp_ult_i8(-1, 0) == false
+
+
+function %bricmp_sle_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 sle v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sle_i64(0, 0) == true
+; run: %bricmp_sle_i64(0, 1) == true
+; run: %bricmp_sle_i64(1, 0) == false
+; run: %bricmp_sle_i64(0, -1) == false
+; run: %bricmp_sle_i64(-1, 0) == true
+
+function %bricmp_sle_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 sle v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sle_i32(0, 0) == true
+; run: %bricmp_sle_i32(0, 1) == true
+; run: %bricmp_sle_i32(1, 0) == false
+; run: %bricmp_sle_i32(0, -1) == false
+; run: %bricmp_sle_i32(-1, 0) == true
+
+function %bricmp_sle_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 sle v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sle_i16(0, 0) == true
+; run: %bricmp_sle_i16(0, 1) == true
+; run: %bricmp_sle_i16(1, 0) == false
+; run: %bricmp_sle_i16(0, -1) == false
+; run: %bricmp_sle_i16(-1, 0) == true
+
+function %bricmp_sle_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 sle v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sle_i8(0, 0) == true
+; run: %bricmp_sle_i8(0, 1) == true
+; run: %bricmp_sle_i8(1, 0) == false
+; run: %bricmp_sle_i8(0, -1) == false
+; run: %bricmp_sle_i8(-1, 0) == true
+
+
+function %bricmp_ule_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 ule v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ule_i64(0, 0) == true
+; run: %bricmp_ule_i64(0, 1) == true
+; run: %bricmp_ule_i64(1, 0) == false
+; run: %bricmp_ule_i64(0, -1) == true
+; run: %bricmp_ule_i64(-1, 0) == false
+
+function %bricmp_ule_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 ule v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ule_i32(0, 0) == true
+; run: %bricmp_ule_i32(0, 1) == true
+; run: %bricmp_ule_i32(1, 0) == false
+; run: %bricmp_ule_i32(0, -1) == true
+; run: %bricmp_ule_i32(-1, 0) == false
+
+function %bricmp_ule_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 ule v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ule_i16(0, 0) == true
+; run: %bricmp_ule_i16(0, 1) == true
+; run: %bricmp_ule_i16(1, 0) == false
+; run: %bricmp_ule_i16(0, -1) == true
+; run: %bricmp_ule_i16(-1, 0) == false
+
+function %bricmp_ule_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 ule v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ule_i8(0, 0) == true
+; run: %bricmp_ule_i8(0, 1) == true
+; run: %bricmp_ule_i8(1, 0) == false
+; run: %bricmp_ule_i8(0, -1) == true
+; run: %bricmp_ule_i8(-1, 0) == false
+
+
+function %bricmp_sgt_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 sgt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sgt_i64(0, 0) == false
+; run: %bricmp_sgt_i64(0, 1) == false
+; run: %bricmp_sgt_i64(1, 0) == true
+; run: %bricmp_sgt_i64(0, -1) == true
+; run: %bricmp_sgt_i64(-1, 0) == false
+
+function %bricmp_sgt_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 sgt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sgt_i32(0, 0) == false
+; run: %bricmp_sgt_i32(0, 1) == false
+; run: %bricmp_sgt_i32(1, 0) == true
+; run: %bricmp_sgt_i32(0, -1) == true
+; run: %bricmp_sgt_i32(-1, 0) == false
+
+function %bricmp_sgt_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 sgt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sgt_i16(0, 0) == false
+; run: %bricmp_sgt_i16(0, 1) == false
+; run: %bricmp_sgt_i16(1, 0) == true
+; run: %bricmp_sgt_i16(0, -1) == true
+; run: %bricmp_sgt_i16(-1, 0) == false
+
+function %bricmp_sgt_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 sgt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sgt_i8(0, 0) == false
+; run: %bricmp_sgt_i8(0, 1) == false
+; run: %bricmp_sgt_i8(1, 0) == true
+; run: %bricmp_sgt_i8(0, -1) == true
+; run: %bricmp_sgt_i8(-1, 0) == false
+
+
+function %bricmp_ugt_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 ugt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ugt_i64(0, 0) == false
+; run: %bricmp_ugt_i64(0, 1) == false
+; run: %bricmp_ugt_i64(1, 0) == true
+; run: %bricmp_ugt_i64(0, -1) == false
+; run: %bricmp_ugt_i64(-1, 0) == true
+
+function %bricmp_ugt_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 ugt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ugt_i32(0, 0) == false
+; run: %bricmp_ugt_i32(0, 1) == false
+; run: %bricmp_ugt_i32(1, 0) == true
+; run: %bricmp_ugt_i32(0, -1) == false
+; run: %bricmp_ugt_i32(-1, 0) == true
+
+function %bricmp_ugt_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 ugt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ugt_i16(0, 0) == false
+; run: %bricmp_ugt_i16(0, 1) == false
+; run: %bricmp_ugt_i16(1, 0) == true
+; run: %bricmp_ugt_i16(0, -1) == false
+; run: %bricmp_ugt_i16(-1, 0) == true
+
+function %bricmp_ugt_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 ugt v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_ugt_i8(0, 0) == false
+; run: %bricmp_ugt_i8(0, 1) == false
+; run: %bricmp_ugt_i8(1, 0) == true
+; run: %bricmp_ugt_i8(0, -1) == false
+; run: %bricmp_ugt_i8(-1, 0) == true
+
+
+function %bricmp_sge_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 sge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sge_i64(0, 0) == true
+; run: %bricmp_sge_i64(0, 1) == false
+; run: %bricmp_sge_i64(1, 0) == true
+; run: %bricmp_sge_i64(0, -1) == true
+; run: %bricmp_sge_i64(-1, 0) == false
+
+function %bricmp_sge_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 sge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sge_i32(0, 0) == true
+; run: %bricmp_sge_i32(0, 1) == false
+; run: %bricmp_sge_i32(1, 0) == true
+; run: %bricmp_sge_i32(0, -1) == true
+; run: %bricmp_sge_i32(-1, 0) == false
+
+function %bricmp_sge_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 sge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sge_i16(0, 0) == true
+; run: %bricmp_sge_i16(0, 1) == false
+; run: %bricmp_sge_i16(1, 0) == true
+; run: %bricmp_sge_i16(0, -1) == true
+; run: %bricmp_sge_i16(-1, 0) == false
+
+function %bricmp_sge_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 sge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_sge_i8(0, 0) == true
+; run: %bricmp_sge_i8(0, 1) == false
+; run: %bricmp_sge_i8(1, 0) == true
+; run: %bricmp_sge_i8(0, -1) == true
+; run: %bricmp_sge_i8(-1, 0) == false
+
+
+function %bricmp_uge_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 uge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_uge_i64(0, 0) == true
+; run: %bricmp_uge_i64(0, 1) == false
+; run: %bricmp_uge_i64(1, 0) == true
+; run: %bricmp_uge_i64(0, -1) == false
+; run: %bricmp_uge_i64(-1, 0) == true
+
+function %bricmp_uge_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 uge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_uge_i32(0, 0) == true
+; run: %bricmp_uge_i32(0, 1) == false
+; run: %bricmp_uge_i32(1, 0) == true
+; run: %bricmp_uge_i32(0, -1) == false
+; run: %bricmp_uge_i32(-1, 0) == true
+
+function %bricmp_uge_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 uge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_uge_i16(0, 0) == true
+; run: %bricmp_uge_i16(0, 1) == false
+; run: %bricmp_uge_i16(1, 0) == true
+; run: %bricmp_uge_i16(0, -1) == false
+; run: %bricmp_uge_i16(-1, 0) == true
+
+function %bricmp_uge_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 uge v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_uge_i8(0, 0) == true
+; run: %bricmp_uge_i8(0, 1) == false
+; run: %bricmp_uge_i8(1, 0) == true
+; run: %bricmp_uge_i8(0, -1) == false
+; run: %bricmp_uge_i8(-1, 0) == true

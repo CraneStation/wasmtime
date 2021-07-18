@@ -1,3 +1,4 @@
+test interpret
 test run
 target aarch64
 target arm
@@ -5,9 +6,23 @@ target s390x
 target x86_64 machinst
 target x86_64 legacy
 
-function u0:0() -> b1 {
+function %jump() -> b1 {
 block0:
-    v0 = iconst.i8 0
+    jump block2
+
+block1:
+    v0 = bconst.b1 false
+    return v0
+
+block2:
+    v1 = bconst.b1 true
+    return v1
+}
+; run: %jump() == true
+
+
+function %brz_i64(i64) -> b1 {
+block0(v0: i64):
     brz v0, block1
     jump block2
 
@@ -19,20 +34,195 @@ block2:
     v2 = bconst.b1 false
     return v2
 }
-; run
+; run: %brz_i64(0) == true
+; run: %brz_i64(1) == false
+; run: %brz_i64(-1) == false
 
-function u0:1() -> b1 {
+function %brz_i32(i32) -> b1 {
+block0(v0: i32):
+    brz v0, block1
+    jump block2
+
+block1:
+    v1 = bconst.b1 true
+    return v1
+
+block2:
+    v2 = bconst.b1 false
+    return v2
+}
+; run: %brz_i32(0) == true
+; run: %brz_i32(1) == false
+; run: %brz_i32(-1) == false
+
+function %brz_i16(i16) -> b1 {
+block0(v0: i16):
+    brz v0, block1
+    jump block2
+
+block1:
+    v1 = bconst.b1 true
+    return v1
+
+block2:
+    v2 = bconst.b1 false
+    return v2
+}
+; run: %brz_i16(0) == true
+; run: %brz_i16(1) == false
+; run: %brz_i16(-1) == false
+
+function %brz_i8(i8) -> b1 {
+block0(v0: i8):
+    brz v0, block1
+    jump block2
+
+block1:
+    v1 = bconst.b1 true
+    return v1
+
+block2:
+    v2 = bconst.b1 false
+    return v2
+}
+; run: %brz_i8(0) == true
+; run: %brz_i8(1) == false
+; run: %brz_i8(-1) == false
+
+
+; TODO: Merge this with brz_b1_false when we are able to pass bool imm's in test params
+function %brz_b1_true() -> b1 {
 block0:
-    v0 = iconst.i8 0
+    v1 = bconst.b1 true
+    brz v1, block1
+    jump block2
+
+block1:
+    v2 = bconst.b1 true
+    return v2
+
+block2:
+    v3 = bconst.b1 false
+    return v3
+}
+; run: %brz_b1_true() == false
+
+function %brz_b1_false() -> b1 {
+block0:
+    v1 = bconst.b1 false
+    brz v1, block1
+    jump block2
+
+block1:
+    v2 = bconst.b1 true
+    return v2
+
+block2:
+    v3 = bconst.b1 false
+    return v3
+}
+; run: %brz_b1_false() == true
+
+
+
+function %brnz_i64(i64) -> b1 {
+block0(v0: i64):
     brnz v0, block1
     jump block2
 
 block1:
-    v1 = bconst.b1 false
+    v1 = bconst.b1 true
     return v1
 
 block2:
-    v2 = bconst.b1 true
+    v2 = bconst.b1 false
     return v2
 }
-; run
+; run: %brnz_i64(0) == false
+; run: %brnz_i64(1) == true
+; run: %brnz_i64(-1) == true
+
+function %brnz_i32(i32) -> b1 {
+block0(v0: i32):
+    brnz v0, block1
+    jump block2
+
+block1:
+    v1 = bconst.b1 true
+    return v1
+
+block2:
+    v2 = bconst.b1 false
+    return v2
+}
+; run: %brnz_i32(0) == false
+; run: %brnz_i32(1) == true
+; run: %brnz_i32(-1) == true
+
+function %brnz_i16(i16) -> b1 {
+block0(v0: i16):
+    brnz v0, block1
+    jump block2
+
+block1:
+    v1 = bconst.b1 true
+    return v1
+
+block2:
+    v2 = bconst.b1 false
+    return v2
+}
+; run: %brnz_i16(0) == false
+; run: %brnz_i16(1) == true
+; run: %brnz_i16(-1) == true
+
+function %brnz_i8(i8) -> b1 {
+block0(v0: i8):
+    brnz v0, block1
+    jump block2
+
+block1:
+    v1 = bconst.b1 true
+    return v1
+
+block2:
+    v2 = bconst.b1 false
+    return v2
+}
+; run: %brnz_i8(0) == false
+; run: %brnz_i8(1) == true
+; run: %brnz_i8(-1) == true
+
+
+; TODO: Merge this with brz_b1_false when we are able to pass bool imm's in test params
+function %brnz_b1_true() -> b1 {
+block0:
+    v1 = bconst.b1 true
+    brnz v1, block1
+    jump block2
+
+block1:
+    v2 = bconst.b1 true
+    return v2
+
+block2:
+    v3 = bconst.b1 false
+    return v3
+}
+; run: %brnz_b1_true() == true
+
+function %brnz_b1_false() -> b1 {
+block0:
+    v1 = bconst.b1 false
+    brnz v1, block1
+    jump block2
+
+block1:
+    v2 = bconst.b1 true
+    return v2
+
+block2:
+    v3 = bconst.b1 false
+    return v3
+}
+; run: %brnz_b1_false() == false

@@ -1,0 +1,217 @@
+test interpret
+test run
+target aarch64
+target x86_64 machinst
+
+; TODO: Merge this with the main br_icmp file when s390x supports overflows.
+; See: https://github.com/bytecodealliance/wasmtime/issues/3060
+
+function %bricmp_of_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 of v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_of_i64(0, 0) == false
+; run: %bricmp_of_i64(0, 1) == false
+; run: %bricmp_of_i64(1, 0) == false
+; run: %bricmp_of_i64(0, -1) == false
+; run: %bricmp_of_i64(0x80000000_00000000, 0x80000000_00000000) == false
+; run: %bricmp_of_i64(0x7FFFFFFF_FFFFFFFF, 1) == false
+; run: %bricmp_of_i64(0x7FFFFFFF_FFFFFFFF, 0x7FFFFFFF_FFFFFFFF) == false
+; run: %bricmp_of_i64(0xFFFFFFFF_FFFFFFFF, 1) == false
+; run: %bricmp_of_i64(0x80000000_00000000, 1) == true
+; run: %bricmp_of_i64(0x7FFFFFFF_FFFFFFFF, 0x80000000_00000000) == true
+; run: %bricmp_of_i64(0x80000000_00000000, 0x7FFFFFFF_FFFFFFFF) == true
+; run: %bricmp_of_i64(0x7FFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF) == true
+
+function %bricmp_of_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 of v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_of_i32(0, 0) == false
+; run: %bricmp_of_i32(0, 1) == false
+; run: %bricmp_of_i32(1, 0) == false
+; run: %bricmp_of_i32(0, -1) == false
+; run: %bricmp_of_i32(0x80000000, 0x80000000) == false
+; run: %bricmp_of_i32(0x7FFFFFFF, 1) == false
+; run: %bricmp_of_i32(0x7FFFFFFF, 0x7FFFFFFF) == false
+; run: %bricmp_of_i32(0xFFFFFFFF, 1) == false
+; run: %bricmp_of_i32(0x80000000, 1) == true
+; run: %bricmp_of_i32(0x7FFFFFFF, 0x80000000) == true
+; run: %bricmp_of_i32(0x80000000, 0x7FFFFFFF) == true
+; run: %bricmp_of_i32(0x7FFFFFFF, 0xFFFFFFFF) == true
+
+function %bricmp_of_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 of v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_of_i16(0, 0) == false
+; run: %bricmp_of_i16(0, 1) == false
+; run: %bricmp_of_i16(1, 0) == false
+; run: %bricmp_of_i16(0, -1) == false
+; run: %bricmp_of_i16(0x8000, 0x8000) == false
+; run: %bricmp_of_i16(0x7FFF, 1) == false
+; run: %bricmp_of_i16(0x7FFF, 0x7FFF) == false
+; run: %bricmp_of_i16(0xFFFF, 1) == false
+; run: %bricmp_of_i16(0x8000, 1) == true
+; run: %bricmp_of_i16(0x7FFF, 0x8000) == true
+; run: %bricmp_of_i16(0x8000, 0x7FFF) == true
+; run: %bricmp_of_i16(0x7FFF, 0xFFFF) == true
+
+function %bricmp_of_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 of v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_of_i8(0, 0) == false
+; run: %bricmp_of_i8(0, 1) == false
+; run: %bricmp_of_i8(1, 0) == false
+; run: %bricmp_of_i8(0, -1) == false
+; run: %bricmp_of_i8(0x80, 0x80) == false
+; run: %bricmp_of_i8(0x7F, 1) == false
+; run: %bricmp_of_i8(0x7F, 0x7F) == false
+; run: %bricmp_of_i8(0xFF, 1) == false
+; run: %bricmp_of_i8(0x80, 1) == true
+; run: %bricmp_of_i8(0x7F, 0x80) == true
+; run: %bricmp_of_i8(0x80, 0x7F) == true
+; run: %bricmp_of_i8(0x7F, 0xFF) == true
+
+
+
+function %bricmp_nof_i64(i64, i64) -> b1 {
+block0(v0: i64, v1: i64):
+    br_icmp.i64 nof v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_nof_i64(0, 0) == true
+; run: %bricmp_nof_i64(0, 1) == true
+; run: %bricmp_nof_i64(1, 0) == true
+; run: %bricmp_nof_i64(0, -1) == true
+; run: %bricmp_nof_i64(0x80000000_00000000, 0x80000000_00000000) == true
+; run: %bricmp_nof_i64(0x7FFFFFFF_FFFFFFFF, 1) == true
+; run: %bricmp_nof_i64(0x7FFFFFFF_FFFFFFFF, 0x7FFFFFFF_FFFFFFFF) == true
+; run: %bricmp_nof_i64(0xFFFFFFFF_FFFFFFFF, 1) == true
+; run: %bricmp_nof_i64(0x80000000_00000000, 1) == false
+; run: %bricmp_nof_i64(0x7FFFFFFF_FFFFFFFF, 0x80000000_00000000) == false
+; run: %bricmp_nof_i64(0x80000000_00000000, 0x7FFFFFFF_FFFFFFFF) == false
+; run: %bricmp_nof_i64(0x7FFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF) == false
+
+function %bricmp_nof_i32(i32, i32) -> b1 {
+block0(v0: i32, v1: i32):
+    br_icmp.i32 nof v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_nof_i32(0, 0) == true
+; run: %bricmp_nof_i32(0, 1) == true
+; run: %bricmp_nof_i32(1, 0) == true
+; run: %bricmp_nof_i32(0, -1) == true
+; run: %bricmp_nof_i32(0x80000000, 0x80000000) == true
+; run: %bricmp_nof_i32(0x7FFFFFFF, 1) == true
+; run: %bricmp_nof_i32(0x7FFFFFFF, 0x7FFFFFFF) == true
+; run: %bricmp_nof_i32(0xFFFFFFFF, 1) == true
+; run: %bricmp_nof_i32(0x80000000, 1) == false
+; run: %bricmp_nof_i32(0x7FFFFFFF, 0x80000000) == false
+; run: %bricmp_nof_i32(0x80000000, 0x7FFFFFFF) == false
+; run: %bricmp_nof_i32(0x7FFFFFFF, 0xFFFFFFFF) == false
+
+function %bricmp_nof_i16(i16, i16) -> b1 {
+block0(v0: i16, v1: i16):
+    br_icmp.i16 nof v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_nof_i16(0, 0) == true
+; run: %bricmp_nof_i16(0, 1) == true
+; run: %bricmp_nof_i16(1, 0) == true
+; run: %bricmp_nof_i16(0, -1) == true
+; run: %bricmp_nof_i16(0x8000, 0x8000) == true
+; run: %bricmp_nof_i16(0x7FFF, 1) == true
+; run: %bricmp_nof_i16(0x7FFF, 0x7FFF) == true
+; run: %bricmp_nof_i16(0xFFFF, 1) == true
+; run: %bricmp_nof_i16(0x8000, 1) == false
+; run: %bricmp_nof_i16(0x7FFF, 0x8000) == false
+; run: %bricmp_nof_i16(0x8000, 0x7FFF) == false
+; run: %bricmp_nof_i16(0x7FFF, 0xFFFF) == false
+
+function %bricmp_nof_i8(i8, i8) -> b1 {
+block0(v0: i8, v1: i8):
+    br_icmp.i8 nof v0, v1, block2
+    jump block1
+
+block1:
+    v2 = bconst.b1 false
+    return v2
+
+block2:
+    v3 = bconst.b1 true
+    return v3
+}
+; run: %bricmp_nof_i8(0, 0) == true
+; run: %bricmp_nof_i8(0, 1) == true
+; run: %bricmp_nof_i8(1, 0) == true
+; run: %bricmp_nof_i8(0, -1) == true
+; run: %bricmp_nof_i8(0x80, 0x80) == true
+; run: %bricmp_nof_i8(0x7F, 1) == true
+; run: %bricmp_nof_i8(0x7F, 0x7F) == true
+; run: %bricmp_nof_i8(0xFF, 1) == true
+; run: %bricmp_nof_i8(0x80, 1) == false
+; run: %bricmp_nof_i8(0x7F, 0x80) == false
+; run: %bricmp_nof_i8(0x80, 0x7F) == false
+; run: %bricmp_nof_i8(0x7F, 0xFF) == false

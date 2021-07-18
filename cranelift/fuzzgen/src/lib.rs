@@ -47,6 +47,23 @@ where
         }
     }
 
+    fn generate_datavalue(&mut self, ty: Type) -> Result<DataValue> {
+        Ok(match ty {
+            ty if ty.is_int() => {
+                let imm64 = match ty {
+                    I8 => self.u.arbitrary::<i8>()? as i64,
+                    I16 => self.u.arbitrary::<i16>()? as i64,
+                    I32 => self.u.arbitrary::<i32>()? as i64,
+                    I64 => self.u.arbitrary::<i64>()?,
+                    _ => unreachable!(),
+                };
+                DataValue::from_integer(imm64, ty)?
+            }
+            ty if ty.is_bool() => DataValue::B(bool::arbitrary(self.u)?),
+            _ => unimplemented!(),
+        })
+    }
+
     fn generate_test_inputs(&mut self, signature: &Signature) -> Result<Vec<TestCaseInput>> {
         let num_tests = self.u.int_in_range(self.config.test_case_inputs.clone())?;
         let mut inputs = Vec::with_capacity(num_tests);
@@ -55,16 +72,7 @@ where
             let test_args = signature
                 .params
                 .iter()
-                .map(|p| {
-                    let imm64 = match p.value_type {
-                        I8 => self.u.arbitrary::<i8>()? as i64,
-                        I16 => self.u.arbitrary::<i16>()? as i64,
-                        I32 => self.u.arbitrary::<i32>()? as i64,
-                        I64 => self.u.arbitrary::<i64>()?,
-                        _ => unreachable!(),
-                    };
-                    Ok(DataValue::from_integer(imm64, p.value_type)?)
-                })
+                .map(|p| self.generate_datavalue(p.value_type))
                 .collect::<Result<TestCaseInput>>()?;
 
             inputs.push(test_args);
